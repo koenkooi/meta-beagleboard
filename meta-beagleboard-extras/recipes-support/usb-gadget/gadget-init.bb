@@ -49,6 +49,7 @@ FILES_${PN}-network = "${base_libdir}/systemd/system/network-gadget-init.service
 FILES_${PN}-udhcpd = "${base_libdir}/systemd/system/udhcpd.service \
                       ${sysconfdir}/udhcpd.conf"
 
+RDEPENDS_${PN} = "devmem2"
 RRECOMMENDS_${PN} = "${PN}-network ${PN}-udhcpd"
 RREPLACES_${PN} = "${PN}-storage"
 
