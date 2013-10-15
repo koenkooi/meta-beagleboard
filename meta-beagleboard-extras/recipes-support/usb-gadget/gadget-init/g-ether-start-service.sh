@@ -1,5 +1,5 @@
 #!/bin/sh
-if [ -a /sys/devices/platform/omap/musb-ti81xx/musb-hdrc.0/gadget/lun0/file ]
+if [ -e /sys/devices/platform/omap/musb-ti81xx/musb-hdrc.0/gadget/lun0/file ]
 then
 	x=$(cat /sys/devices/platform/omap/musb-ti81xx/musb-hdrc.0/gadget/lun0/file)
 	if [ -z "$x" ]
