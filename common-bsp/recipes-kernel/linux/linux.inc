@@ -241,11 +241,11 @@ do_install_append() {
 PACKAGES =+ "kernel-headers"
 FILES_kernel-headers = "${exec_prefix}/src/linux*"
 
-PACKAGES =+ "kernel-devicetree-overlays kernel-devicetrees"
+PACKAGES =+ "kernel-devicetree-overlays kernel-devicetree"
 FILES_kernel-devicetree-overlays = "/lib/firmware/*.dtbo /lib/firmware/*.dts"
-FILES_kernel-devicetrees += "/boot/*.dtb"
+FILES_kernel-devicetree += "/boot/*.dtb"
 
-RDEPENDS_kernel-image_append = " kernel-devicetrees"
+RDEPENDS_kernel-image_append = " kernel-devicetree"
 RRECOMMENDS_kernel-image_append = " kernel-devicetree-overlays"
 
 do_devicetree_image() {
