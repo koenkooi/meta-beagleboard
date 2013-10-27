@@ -88,6 +88,7 @@ SRC_URI += " \
 	file://adc/0018-input-ti_tsc-Enable-shared-IRQ-TSC.patch \
 	file://adc/0019-iio-ti_am335x_adc-Add-continuous-sampling-and-trigge.patch \
 	file://adc/0020-iio-ti_am335x_adc-Add-IIO-map-interface.patch \
+	file://adc/0021-TI-TSC-ADC-fix-missing-measurements.patch \
 	file://i2c/0001-pinctrl-pinctrl-single-must-be-initialized-early.patch \
 	file://i2c/0002-Bone-DTS-working-i2c2-i2c3-in-the-tree.patch \
 	file://i2c/0003-am33xx-Convert-I2C-from-omap-to-am33xx-names.patch \
@@ -701,6 +702,7 @@ SRC_URI += " \
 	file://capes/0016-DT-overlay-for-BeBoPr-Bridge-and-BeagleBone-any-colo.patch \
 	file://capes/0017-Removed-Whitelist-and-Blacklist-Modes-From-HDMI-Devi.patch \
 	file://capes/0018-beaglebone-capes-add-replicape-A2-and-A3-support.patch \
+	file://capes/0019-capes-Add-midi-cape-support.patch \
 	file://fixes/0001-sync-don-t-block-the-flusher-thread-waiting-on-IO.patch \
 	file://fixes/0002-USB-Fix-USB-device-disconnects-on-resume.patch \
 	file://fixes/0003-beaglebone-switch-uSD-to-4-bit-mode.patch \
