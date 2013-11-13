@@ -51,7 +51,7 @@ umount /dev/mmcblk1p1
 sync
 
 echo "Extracting rootfs"
-tar zxf Angstrom-Cloud9-IDE-GNOME-eglibc-ipk-v2013.06-beaglebone.rootfs.tar.gz -C ${PART2MOUNT} --numeric-owner
+tar Jxf Angstrom-Cloud9-IDE-GNOME-eglibc-ipk-v2013.06-beaglebone.rootfs.tar.xz -C ${PART2MOUNT} --numeric-owner
 
 echo "Populating VFAT partition"
 mount /dev/mmcblk1p1 ${PART1MOUNT} -o async
