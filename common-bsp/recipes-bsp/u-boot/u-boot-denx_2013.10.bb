@@ -1,4 +1,4 @@
-require u-boot.inc
+require u-boot-denx.inc
 
 # SPL build
 UBOOT_BINARY = "u-boot.img"
