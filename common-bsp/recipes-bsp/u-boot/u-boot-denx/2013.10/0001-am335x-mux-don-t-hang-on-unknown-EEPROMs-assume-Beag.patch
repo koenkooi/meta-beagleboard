@@ -1,0 +1,32 @@
+From 130826cb6a1f6ce6a266d928d6965ccce0871eea Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Wed, 3 Apr 2013 08:32:19 +0200
+Subject: [PATCH 1/5] am335x mux: don't hang on unknown EEPROMs, assume
+ BeagleBone Black
+
+Signed-off-by: Koen Kooi <koen@dominion.thruhere.net>
+---
+ board/ti/am335x/mux.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/board/ti/am335x/mux.c b/board/ti/am335x/mux.c
+index b2bfda5..7de507a 100644
+--- a/board/ti/am335x/mux.c
++++ b/board/ti/am335x/mux.c
+@@ -379,7 +379,11 @@ void enable_board_pin_mux(struct am335x_baseboard_id *header)
+ 		configure_module_pin_mux(mmc0_pin_mux);
+ 		configure_module_pin_mux(mmc1_pin_mux);
+ 	} else {
+-		puts("Unknown board, cannot configure pinmux.");
+-		hang();
++		puts("Unknown board, assuming Beaglebone LT/Black.");
++		/* Beaglebone LT pinmux */
++		configure_module_pin_mux(i2c1_pin_mux);
++		configure_module_pin_mux(mii1_pin_mux);
++		configure_module_pin_mux(mmc0_pin_mux);
++		configure_module_pin_mux(mmc1_pin_mux);
+ 	}
+ }
+-- 
+1.8.4.2
+
