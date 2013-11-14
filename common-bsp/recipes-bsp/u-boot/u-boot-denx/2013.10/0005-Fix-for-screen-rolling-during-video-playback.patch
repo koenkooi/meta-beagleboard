@@ -1,0 +1,41 @@
+From 782f57c1c4c3a52d01ca97a374c1083e20379e1b Mon Sep 17 00:00:00 2001
+From: Darren Etheridge <detheridge@ti.com>
+Date: Tue, 9 Apr 2013 16:49:38 -0500
+Subject: [PATCH 5/5] Fix for screen rolling during video playback
+
+When video is being played back in browser on BeagleBone Black. This value might need some tweaking, but it effectively allows the LCDC and the ARM to play fairer in memory, so the LCDC does not get starved causing the screen to roll See Page 439 in spruh73g (AM33xx TRM) for details
+---
+ arch/arm/cpu/armv7/am33xx/ddr.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/arch/arm/cpu/armv7/am33xx/ddr.c b/arch/arm/cpu/armv7/am33xx/ddr.c
+index fa697c7..63e0760 100644
+--- a/arch/arm/cpu/armv7/am33xx/ddr.c
++++ b/arch/arm/cpu/armv7/am33xx/ddr.c
+@@ -12,6 +12,12 @@
+ #include <asm/io.h>
+ #include <asm/emif.h>
+ 
++/* This value might need some tweaking, but it effectively allows the LCDC */
++/* and the ARM to play fairer in memory, so the LCDC does not get starved causing */
++/* the screen to roll */
++/* See Page 439 in spruh73g (AM33xx TRM) for details */
++#define AM33XX_INT_CONFIG_COUNT 0x00303030
++
+ /**
+  * Base address for EMIF instances
+  */
+@@ -70,6 +76,10 @@ void set_sdram_timings(const struct emif_regs *regs, int nr)
+ 	writel(regs->sdram_tim2, &emif_reg[nr]->emif_sdram_tim_2_shdw);
+ 	writel(regs->sdram_tim3, &emif_reg[nr]->emif_sdram_tim_3);
+ 	writel(regs->sdram_tim3, &emif_reg[nr]->emif_sdram_tim_3_shdw);
++
++	/* Configure INT_CONFIG value so that LCDC does not get stalled */
++	/* for a long time if ARM is accessing memory */
++	writel(AM33XX_INT_CONFIG_COUNT, &emif_reg[nr]->emif_l3_config);
+ }
+ 
+ /**
+-- 
+1.8.4.2
+

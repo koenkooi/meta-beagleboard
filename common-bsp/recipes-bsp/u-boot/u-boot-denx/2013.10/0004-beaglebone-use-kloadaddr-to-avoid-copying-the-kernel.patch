@@ -1,0 +1,26 @@
+From a802a239d666f2513fb3ef04b4124e22f36e10da Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Wed, 3 Apr 2013 08:25:04 +0200
+Subject: [PATCH 4/5] beaglebone: use kloadaddr to avoid copying the kernel
+ around
+
+Signed-off-by: Koen Kooi <koen@dominion.thruhere.net>
+---
+ include/configs/am335x_evm.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/configs/am335x_evm.h b/include/configs/am335x_evm.h
+index eaa181c..5a1c5e2 100644
+--- a/include/configs/am335x_evm.h
++++ b/include/configs/am335x_evm.h
+@@ -57,6 +57,7 @@
+ #ifndef CONFIG_SPL_BUILD
+ #define CONFIG_EXTRA_ENV_SETTINGS \
+ 	"loadaddr=0x80200000\0" \
++	"kloadaddr=0x80007fc0\0" \
+ 	"fdtaddr=0x80F80000\0" \
+ 	"fdt_high=0xffffffff\0" \
+ 	"boot_fdt=try\0" \
+-- 
+1.8.4.2
+
