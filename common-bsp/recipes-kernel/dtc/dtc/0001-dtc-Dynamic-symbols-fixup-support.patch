@@ -1,7 +1,8 @@
-From 80ec04f7bb54f1e982449211e9625f7b97342869 Mon Sep 17 00:00:00 2001
+From c2e8bb2422fb68ec1e2b84513d16466385b81fac Mon Sep 17 00:00:00 2001
+Message-Id: <c2e8bb2422fb68ec1e2b84513d16466385b81fac.1381101693.git.stefan@agner.ch>
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
-Date: Thu, 6 Dec 2012 13:48:11 +0200
-Subject: [PATCH] dtc: Dynamic symbols & fixup support
+Date: Fri, 4 Jan 2013 21:16:21 +0200
+Subject: [PATCH 1/2] dtc: Dynamic symbols & fixup support
 
 Enable the generation of symbol & fixup information for
 usage with dynamic DT loading.
@@ -15,16 +16,62 @@ references will the tracked in the __local_fixups__ node.
 
 This is sufficient to implement a dynamic DT object loader.
 
-Signed-off-by: Pantelis Antoniou <panto@antoniou-consulting.com>
----
- checks.c     | 120 +++++++++++++++++++++++++++++++++++++++++++++++++--
- dtc-lexer.l  |   5 +++
- dtc-parser.y |  23 ++++++++--
- dtc.c        |   9 +++-
- dtc.h        |  38 ++++++++++++++++
- flattree.c   | 139 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
- 6 files changed, 325 insertions(+), 9 deletions(-)
+Stolen from [1] with fix for -v option
 
+[1] https://aur.archlinux.org/packages/dt/dtc-dynamic/dtc-dynamic.tar.gz
+
+Signed-off-by: Pantelis Antoniou <panto@antoniou-consulting.com>
+Signed-off-by: Stefan Agner <stefan@agner.ch>
+
+---
+ Documentation/dts-format.txt |   7 +++
+ Documentation/manual.txt     |   8 +++
+ checks.c                     | 120 +++++++++++++++++++++++++++++++++++--
+ dtc-lexer.l                  |   5 ++
+ dtc-parser.y                 |  23 ++++++-
+ dtc.c                        |   9 ++-
+ dtc.h                        |  38 ++++++++++++
+ flattree.c                   | 139 +++++++++++++++++++++++++++++++++++++++++++
+ 8 files changed, 340 insertions(+), 9 deletions(-)
+
+diff --git a/Documentation/dts-format.txt b/Documentation/dts-format.txt
+index 41741df..4da515c 100644
+--- a/Documentation/dts-format.txt
++++ b/Documentation/dts-format.txt
+@@ -115,7 +115,14 @@ Version 1 DTS files have the overall layout:
+ 
+ * C style (/* ... */) and C++ style (// ...) comments are supported.
+ 
++Device Tree Objects
++-------------------
+ 
++Using the plugin tag enables dynamic tree objects.
++
++	/plugin/;
++
++For the full details please see Documentation/dt-object-internal.txt
+ 
+ 	-- David Gibson <david@gibson.dropbear.id.au>
+ 	-- Yoder Stuart <stuart.yoder@freescale.com>
+diff --git a/Documentation/manual.txt b/Documentation/manual.txt
+index 65c8540..d313715 100644
+--- a/Documentation/manual.txt
++++ b/Documentation/manual.txt
+@@ -133,6 +133,14 @@ Options:
+ 	By default the most recent version is generated.
+ 	Relevant for dtb and asm output only.
+ 
++    -@
++        Dynamic resolution mode. For non /plugin/ compilations generate
++	a __symbols__ node containing a list of all nodes with a label.
++	When /plugin/ is used, unresolved references are recorded in
++	a __fixups__ node, while local phandle references are recorded
++	in a __local_fixups__ node.
++	See Documentation/dt-object-internal.txt
++
+ 
+ The <output_version> defines what version of the "blob" format will be
+ generated.  Supported versions are 1, 2, 3, 16 and 17.  The default is
 diff --git a/checks.c b/checks.c
 index ee96a25..970c0a3 100644
 --- a/checks.c
@@ -183,7 +230,7 @@ index ee96a25..970c0a3 100644
  };
  
 diff --git a/dtc-lexer.l b/dtc-lexer.l
-index 254d5af..2cef406 100644
+index 3b41bfc..78d5132 100644
 --- a/dtc-lexer.l
 +++ b/dtc-lexer.l
 @@ -112,6 +112,11 @@ static int pop_input_file(void);
@@ -258,10 +305,10 @@ index f412460..e444acf 100644
  	;
  
 diff --git a/dtc.c b/dtc.c
-index d40e220..b19dcd1 100644
+index e3c9653..d2f9647 100644
 --- a/dtc.c
 +++ b/dtc.c
-@@ -31,6 +31,7 @@ int reservenum;		/* Number of memory reservation slots */
+@@ -29,6 +29,7 @@ int reservenum;		/* Number of memory reservation slots */
  int minsize;		/* Minimum blob size */
  int padsize;		/* Additional padding to blob */
  int phandle_format = PHANDLE_BOTH;	/* Use linux,phandle or phandle properties */
@@ -269,25 +316,32 @@ index d40e220..b19dcd1 100644
  
  static void fill_fullpaths(struct node *tree, const char *prefix)
  {
-@@ -96,6 +97,8 @@ static void  __attribute__ ((noreturn)) usage(void)
- 	fprintf(stderr, "\t-W [no-]<checkname>\n");
- 	fprintf(stderr, "\t-E [no-]<checkname>\n");
- 	fprintf(stderr, "\t\t\tenable or disable warnings and errors\n");
-+	fprintf(stderr, "\t-@\n");
-+	fprintf(stderr, "\t\tSymbols and Fixups support\n");
- 	exit(3);
- }
+@@ -49,7 +50,7 @@ static void fill_fullpaths(struct node *tree, const char *prefix)
  
-@@ -118,7 +121,7 @@ int main(int argc, char *argv[])
- 	minsize    = 0;
- 	padsize    = 0;
- 
--	while ((opt = getopt(argc, argv, "hI:O:o:V:d:R:S:p:fqb:i:vH:sW:E:"))
-+	while ((opt = getopt(argc, argv, "hI:O:o:V:d:R:S:p:fqb:i:vH:sW:E:@"))
- 			!= EOF) {
- 		switch (opt) {
- 		case 'I':
-@@ -183,7 +186,9 @@ int main(int argc, char *argv[])
+ /* Usage related data. */
+ static const char usage_synopsis[] = "dtc [options] <input file>";
+-static const char usage_short_opts[] = "qI:O:o:V:d:R:S:p:fb:i:H:sW:E:hv";
++static const char usage_short_opts[] = "qI:O:o:V:d:R:S:p:fb:i:H:sW:E:@:hv";
+ static struct option const usage_long_opts[] = {
+ 	{"quiet",            no_argument, NULL, 'q'},
+ 	{"in-format",         a_argument, NULL, 'I'},
+@@ -67,6 +68,7 @@ static struct option const usage_long_opts[] = {
+ 	{"phandle",           a_argument, NULL, 'H'},
+ 	{"warning",           a_argument, NULL, 'W'},
+ 	{"error",             a_argument, NULL, 'E'},
++	{"symbols",           a_argument, NULL, '@'},
+ 	{"help",             no_argument, NULL, 'h'},
+ 	{"version",          no_argument, NULL, 'v'},
+ 	{NULL,               no_argument, NULL, 0x0},
+@@ -97,6 +99,7 @@ static const char * const usage_opts_help[] = {
+ 	 "\t\tboth   - Both \"linux,phandle\" and \"phandle\" properties",
+ 	"\n\tEnable/disable warnings (prefix with \"no-\")",
+ 	"\n\tEnable/disable errors (prefix with \"no-\")",
++	"\n\tSymbols and Fixups support",
+ 	"\n\tPrint this help and exit",
+ 	"\n\tPrint version and exit",
+ 	NULL,
+@@ -184,7 +187,9 @@ int main(int argc, char *argv[])
  		case 'E':
  			parse_checks_option(false, true, optarg);
  			break;
@@ -296,10 +350,10 @@ index d40e220..b19dcd1 100644
 +			symbol_fixup_support = 1;
 +			break;
  		case 'h':
+ 			usage(NULL);
  		default:
- 			usage();
 diff --git a/dtc.h b/dtc.h
-index 3e42a07..0c8ecf6 100644
+index 264a20c..8c9059b 100644
 --- a/dtc.h
 +++ b/dtc.h
 @@ -54,6 +54,7 @@ extern int reservenum;		/* Number of memory reservation slots */
@@ -310,7 +364,7 @@ index 3e42a07..0c8ecf6 100644
  
  #define PHANDLE_LEGACY	0x1
  #define PHANDLE_EPAPR	0x2
-@@ -133,6 +134,25 @@ struct label {
+@@ -132,6 +133,25 @@ struct label {
  	struct label *next;
  };
  
@@ -336,7 +390,7 @@ index 3e42a07..0c8ecf6 100644
  struct property {
  	int deleted;
  	char *name;
-@@ -159,6 +179,12 @@ struct node {
+@@ -158,6 +178,12 @@ struct node {
  	int addr_cells, size_cells;
  
  	struct label *labels;
@@ -349,7 +403,7 @@ index 3e42a07..0c8ecf6 100644
  };
  
  #define for_each_label_withdel(l0, l) \
-@@ -182,6 +208,18 @@ struct node {
+@@ -181,6 +207,18 @@ struct node {
  	for_each_child_withdel(n, c) \
  		if (!(c)->deleted)
  
@@ -526,5 +580,4 @@ index 665dad7..6237715 100644
  }
  
 -- 
-1.8.1.4
-
+1.8.4
