@@ -627,6 +627,7 @@ SRC_URI += " \
 	file://hdmi/0025-drm-tilcdc-fixup-mode-to-workaound-sync-for-tda998x.patch \
 	file://hdmi/0026-Documentation-for-tilcdc-Devicetree-Bindings.patch \
 	file://hdmi/0027-drm-tilcdc-adding-more-guards-to-prevent-selecting-i.patch \
+	file://hdmi/0028-Make-the-McASP-code-generic-again-remove-all-hardcod.patch \
 	file://resetctrl/0001-boneblack-Remove-default-pinmuxing-for-MMC1.patch \
 	file://resetctrl/0002-capemgr-Implement-cape-priorities.patch \
 	file://resetctrl/0003-rstctl-Reset-control-subsystem.patch \
@@ -706,6 +707,7 @@ SRC_URI += " \
 	file://fixes/0001-sync-don-t-block-the-flusher-thread-waiting-on-IO.patch \
 	file://fixes/0002-USB-Fix-USB-device-disconnects-on-resume.patch \
 	file://fixes/0003-beaglebone-switch-uSD-to-4-bit-mode.patch \
+	file://fixes/0004-mmc-omap_hsmmc-clear-status-flags-before-starting-a-.patch \
 	file://defconfig \
   file://am335x-pm-firmware.bin \
   file://logo_linux_clut224.ppm \
