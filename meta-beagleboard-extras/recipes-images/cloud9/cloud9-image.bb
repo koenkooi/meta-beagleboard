@@ -1,6 +1,6 @@
 # Image with cloud9 ide and hw tools installed
 
-require ti-hw-bringup-image.bb
+require ../base/ti-hw-bringup-image.bb
 
 FATPAYLOAD = "${datadir}/beaglebone-getting-started/*"
 
