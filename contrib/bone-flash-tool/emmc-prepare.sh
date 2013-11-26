@@ -5,17 +5,22 @@ IMAGE=$1
 DEPLOYDIR="/build/v2013.06/deploy/eglibc/images/beaglebone/"
 MOUNTPOINT="/media/2"
 MOUNTPOINT1="/media/1"
-FLASHIMG="Angstrom-Cloud9-IDE-GNOME-eglibc-ipk-v2013.06-beaglebone.rootfs.tar.gz"
+FLASHIMG="Angstrom-Cloud9-IDE-GNOME-eglibc-ipk-v2013.06-beaglebone.rootfs.tar.xz"
 SCRATCHDIR="/build/images"
 
 EMMCSCRIPT="/build/v2013.06/sources/meta-beagleboard/contrib/bone-flash-tool/emmc.sh"
 
-DATE="$(ls -o  --time-style +' %Y.%m.%d' ${DEPLOYDIR}/${FLASHIMG} | awk '{print $5}')-DO-NOT-USE-FOR-PRODUCTION"
+DATE="$(ls -o  --time-style +' %Y.%m.%d' ${DEPLOYDIR}/${FLASHIMG} | awk '{print $5}')"
 #DATE="$(date +'%Y.%m.%d')-DO-NOT-USE-FOR-PRODUCTION"
 
 echo "Using ${DATE} as identifier"
 
-IMAGENAME="$(basename ${IMAGE} .img)-${DATE}"
+IMAGENAME="$(basename ${IMAGE} .img)-${DATE}.img"
+
+if grep -q "${MOUNTPOINT1}" /etc/mtab ; then
+        echo "${MOUNTPOINT1} already mounted, trying to unmount"
+        umount ${MOUNTPOINT1}
+fi
 
 if ! [ -e ${IMAGENAME} ] ; then
 	echo "uncompressing image"
@@ -32,7 +37,7 @@ LOOPFILE="$(kpartx -a -v ${IMAGENAME} | grep /dev | grep p2 | tail -n1 | awk '{p
 
 echo "Loopdev: ${LOOPFILE}"
 
-sleep 1
+sleep 10
 
 if ! [ -e /dev/mapper/${LOOPFILE}p1 ] ; then
 	echo "Incorrect partitioning, /dev/mapper/${LOOPFILE}p1 not found"
@@ -44,10 +49,17 @@ if grep -q "${MOUNTPOINT1}" /etc/mtab ; then
         umount ${MOUNTPOINT1}
 fi
 
-echo "Mounting /dev/mapper/${LOOPFILE}p1"
-mount /dev/mapper/${LOOPFILE}p1 ${MOUNTPOINT1} || exit 1
+if grep -q "/dev/mapper/${LOOPFILE}p1" /etc/mtab ; then
+	echo "/dev/mapper/${LOOPFILE}p1 already mounted at $(grep "/dev/mapper/${LOOPFILE}p1" /etc/mtab | awk '{print $2}'))"
+	exit 1
+else
+	echo "Mounting /dev/mapper/${LOOPFILE}p1 to ${MOUNTPOINT1}"
+	mount /dev/mapper/${LOOPFILE}p1 ${MOUNTPOINT1} || exit 1
+fi
 
 echo "BeagleBone Black eMMC flasher ${DATE}" > ${MOUNTPOINT1}/ID.txt
+
+sleep 1
 
 umount ${MOUNTPOINT1} || exit 1
 
@@ -62,6 +74,8 @@ echo "Mounting /dev/mapper/${LOOPFILE}p2"
 mount /dev/mapper/${LOOPFILE}p2 ${MOUNTPOINT} || exit 1
 
 echo "Tarring up the contents"
+rm -rf ${SCRATCHDIR}/flash.tar
+rm -rf ${MOUNTPOINT}/build/A*.tar.*
 ( cd ${MOUNTPOINT} && rm -f build/${FLASHIMG} && tar cf ${SCRATCHDIR}/flash.tar . )
 
 sleep 1
@@ -108,4 +122,4 @@ kpartx -d -v ${IMAGENAME}
 
 echo "Compressing image"
 xz -f -v -z -T0 -e -9 ${IMAGENAME} 
-cp -f ${IMAGE}.xz /build/dominion/beaglebone/${IMAGENAME}.xz
+cp -f ${IMAGENAME}.xz /build/dominion/beaglebone/
