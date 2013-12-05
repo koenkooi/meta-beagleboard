@@ -627,7 +627,9 @@ SRC_URI += " \
 	file://hdmi/0025-drm-tilcdc-fixup-mode-to-workaound-sync-for-tda998x.patch \
 	file://hdmi/0026-Documentation-for-tilcdc-Devicetree-Bindings.patch \
 	file://hdmi/0027-drm-tilcdc-adding-more-guards-to-prevent-selecting-i.patch \
-	file://hdmi/0028-Make-the-McASP-code-generic-again-remove-all-hardcod.patch \
+	file://audio/0001-Make-the-McASP-code-generic-again-remove-all-hardcod.patch \
+	file://audio/0002-ASoc-Davinci-EVM-Config-12MHz-CLK-for-AIC3x-Codec.patch \
+	file://audio/0003-ASoc-McASP-Lift-Reset-on-CLK-Dividers-when-RX-TX.patch \
 	file://resetctrl/0001-boneblack-Remove-default-pinmuxing-for-MMC1.patch \
 	file://resetctrl/0002-capemgr-Implement-cape-priorities.patch \
 	file://resetctrl/0003-rstctl-Reset-control-subsystem.patch \
