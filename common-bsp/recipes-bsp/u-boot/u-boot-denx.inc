@@ -51,18 +51,18 @@ inherit deploy
 addtask deploy before do_package after do_compile
 
 do_deploy () {
-	install -d ${DEPLOY_DIR_IMAGE}
-	install ${S}/${UBOOT_BINARY} ${DEPLOY_DIR_IMAGE}/${UBOOT_IMAGE}
+	install -d ${DEPLOYDIR}
+	install ${S}/${UBOOT_BINARY} ${DEPLOYDIR}/${UBOOT_IMAGE}
 
-	cd ${DEPLOY_DIR_IMAGE}
+	cd ${DEPLOYDIR}
 	rm -f ${UBOOT_BINARY} ${UBOOT_SYMLINK}
 	ln -sf ${UBOOT_IMAGE} ${UBOOT_SYMLINK}
 	ln -sf ${UBOOT_IMAGE} ${UBOOT_BINARY}
 
 	if [ -e ${S}/MLO ] ; then
-		install ${S}/MLO ${DEPLOY_DIR_IMAGE}/MLO-${MACHINE}-${PV}
-		rm -f ${DEPLOY_DIR_IMAGE}/MLO-${MACHINE} ${DEPLOY_DIR_IMAGE}/MLO
-		ln -sf MLO-${MACHINE}-${PV} ${DEPLOY_DIR_IMAGE}/MLO-${MACHINE}
-		ln -sf MLO-${MACHINE}-${PV} ${DEPLOY_DIR_IMAGE}/MLO
+		install ${S}/MLO ${DEPLOYDIR}/MLO-${MACHINE}-${PV}
+		rm -f ${DEPLOYDIR}/MLO-${MACHINE} ${DEPLOYDIR}/MLO
+		ln -sf MLO-${MACHINE}-${PV} ${DEPLOYDIR}/MLO-${MACHINE}
+		ln -sf MLO-${MACHINE}-${PV} ${DEPLOYDIR}/MLO
 	fi
 }
