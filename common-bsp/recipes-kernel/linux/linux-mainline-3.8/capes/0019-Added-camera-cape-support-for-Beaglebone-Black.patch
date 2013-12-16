@@ -1,7 +1,7 @@
-From 540987464d8d391736eabf2d303190b11d85072e Mon Sep 17 00:00:00 2001
+From 24a8a6d21920efba3c2f286944e148de842c7e49 Mon Sep 17 00:00:00 2001
 From: vvdn <anithamol.benny@vvdntech.com>
 Date: Sat, 23 Nov 2013 08:24:37 -0500
-Subject: [PATCH 19/20] Added camera cape support for Beaglebone Black
+Subject: [PATCH 19/22] Added camera cape support for Beaglebone Black
 
 ---
  drivers/media/i2c/soc_camera/Kconfig            |    6 +
