@@ -1,0 +1,26 @@
+From 8beace98df0d2437982c305ca476439c4493125d Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Thu, 12 Dec 2013 09:45:42 +0100
+Subject: [PATCH 9/9] ti_armv7_common.h: enable CONFIG_API
+
+Signed-off-by: Koen Kooi <koen@dominion.thruhere.net>
+---
+ include/configs/ti_armv7_common.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/configs/ti_armv7_common.h b/include/configs/ti_armv7_common.h
+index d3f640d..a2e8ad8 100644
+--- a/include/configs/ti_armv7_common.h
++++ b/include/configs/ti_armv7_common.h
+@@ -113,6 +113,8 @@
+ #define CONFIG_AUTO_COMPLETE
+ #define CONFIG_CMDLINE_EDITING
+ #define CONFIG_VERSION_VARIABLE
++#define CONFIG_API
++#define CONFIG_SYS_MMC_MAX_DEVICE 2
+ 
+ /* We set the max number of command args high to avoid HUSH bugs. */
+ #define CONFIG_SYS_MAXARGS		64
+-- 
+1.8.4.2
+

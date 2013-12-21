@@ -1,0 +1,25 @@
+From f97c03d4958b04dfa499608a765d097c74ae5fd7 Mon Sep 17 00:00:00 2001
+From: Mans Rullgard <mans@mansr.com>
+Date: Thu, 21 Nov 2013 16:35:52 +0100
+Subject: [PATCH 5/8] explicitly clear unaligned access bit
+
+---
+ arch/arm/cpu/armv7/start.S | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/cpu/armv7/start.S b/arch/arm/cpu/armv7/start.S
+index 6c9b11a..4c512ed 100644
+--- a/arch/arm/cpu/armv7/start.S
++++ b/arch/arm/cpu/armv7/start.S
+@@ -206,7 +206,7 @@ ENTRY(cpu_init_cp15)
+ 	mrc	p15, 0, r0, c1, c0, 0
+ 	bic	r0, r0, #0x00002000	@ clear bits 13 (--V-)
+ 	bic	r0, r0, #0x00000007	@ clear bits 2:0 (-CAM)
+-	orr	r0, r0, #0x00000002	@ set bit 1 (--A-) Align
++	bic     r0, r0, #0x00000002     @ set bit 1 (--A-) Align
+ 	orr	r0, r0, #0x00000800	@ set bit 11 (Z---) BTB
+ #ifdef CONFIG_SYS_ICACHE_OFF
+ 	bic	r0, r0, #0x00001000	@ clear bit 12 (I) I-cache
+-- 
+1.8.4.2
+
