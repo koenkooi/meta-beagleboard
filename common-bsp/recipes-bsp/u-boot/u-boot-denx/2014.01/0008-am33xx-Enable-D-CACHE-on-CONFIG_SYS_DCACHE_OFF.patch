@@ -1,0 +1,51 @@
+From 558464688533e34e692fa826a5b1a0eb1bf2f29f Mon Sep 17 00:00:00 2001
+From: Tom Rini <trini@ti.com>
+Date: Fri, 23 Aug 2013 12:26:49 -0400
+Subject: [PATCH 8/8] am33xx: Enable D-CACHE on !CONFIG_SYS_DCACHE_OFF
+
+Test on Beaglebone white over cpsw, usb ether and SD card (read and
+write), performance increased, crc32 of data matches.
+
+Signed-off-by: Tom Rini <trini@ti.com>
+---
+ arch/arm/cpu/armv7/am33xx/board.c | 8 ++++++++
+ board/siemens/common/board.c      | 9 ---------
+ 2 files changed, 8 insertions(+), 9 deletions(-)
+
+diff --git a/arch/arm/cpu/armv7/am33xx/board.c b/arch/arm/cpu/armv7/am33xx/board.c
+index 803aa9c..c7dad66 100644
+--- a/arch/arm/cpu/armv7/am33xx/board.c
++++ b/arch/arm/cpu/armv7/am33xx/board.c
+@@ -241,3 +241,11 @@ void s_init(void)
+ 	sdram_init();
+ #endif
+ }
++
++#ifndef CONFIG_SYS_DCACHE_OFF
++void enable_caches(void)
++{
++	/* Enable D-cache. I-cache is already enabled in start.S */
++	dcache_enable();
++}
++#endif /* !CONFIG_SYS_DCACHE_OFF */
+diff --git a/board/siemens/common/board.c b/board/siemens/common/board.c
+index 32d2ee4..7e8731b 100644
+--- a/board/siemens/common/board.c
++++ b/board/siemens/common/board.c
+@@ -159,13 +159,4 @@ U_BOOT_CMD(
+ 	"Sends U-Boot into infinite loop",
+ 	""
+ );
+-
+-#ifndef CONFIG_SYS_DCACHE_OFF
+-void enable_caches(void)
+-{
+-	printf("Enable d-cache\n");
+-	/* Enable D-cache. I-cache is already enabled in start.S */
+-	dcache_enable();
+-}
+-#endif /* CONFIG_SYS_DCACHE_OFF */
+ #endif /* !CONFIG_SPL_BUILD */
+-- 
+1.8.4.2
+
