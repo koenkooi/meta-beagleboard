@@ -716,6 +716,17 @@ SRC_URI += " \
 	file://fixes/0003-beaglebone-switch-uSD-to-4-bit-mode.patch \
 	file://fixes/0004-mmc-omap_hsmmc-clear-status-flags-before-starting-a-.patch \
 	file://fixes/0005-omap-serial-allow-custom-buad-rate-settings.patch \
+	file://btrfs/0001-decompressor-add-LZ4-decompressor-module.patch \
+	file://btrfs/0002-lib-add-support-for-LZ4-compressed-kernel.patch \
+	file://btrfs/0003-lib-add-lz4-compressor-module.patch \
+	file://btrfs/0004-lib-lz4-correct-the-LZ4-license.patch \
+	file://btrfs/0005-lz4-fix-compression-decompression-signedness-mismatc.patch \
+	file://btrfs/0006-btrfs-prepare-incompat-flags-for-more-compression-me.patch \
+	file://btrfs/0007-btrfs-lz4-add-wrapper-functions-and-enable-it.patch \
+	file://btrfs/0008-btrfs-add-lz4hc-incompat-bits.patch \
+	file://btrfs/0009-btrfs-add-lz4hc-wrapper-and-enable-it.patch \
+	file://btrfs/0010-btrfs-reduce-duplicate-code-in-lz4_wrapper.c.patch \
+	file://btrfs/0011-btrfs-select-LZ4-HC-libs.patch \
 	file://defconfig \
   file://am335x-pm-firmware.bin \
   file://logo_linux_clut224.ppm \
