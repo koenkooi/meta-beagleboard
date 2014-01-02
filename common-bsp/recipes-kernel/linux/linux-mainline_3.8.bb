@@ -711,6 +711,7 @@ SRC_URI += " \
 	file://capes/0022-Add-PRU-DTS-for-lighting-cape.patch \
 	file://capes/0023-capes-reorder-from-GRB-to-RGB-for-Lighting-cape.patch \
 	file://capes/0024-capes-return-written-bytes-for-faux-spidev-device.patch \
+	file://capes/0025-Fix-aspect-ratio-issue-of-720p-in-MT9M114-camera-cap.patch \
 	file://fixes/0001-sync-don-t-block-the-flusher-thread-waiting-on-IO.patch \
 	file://fixes/0002-USB-Fix-USB-device-disconnects-on-resume.patch \
 	file://fixes/0003-beaglebone-switch-uSD-to-4-bit-mode.patch \
