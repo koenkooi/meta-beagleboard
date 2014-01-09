@@ -250,6 +250,7 @@ SRC_URI += " \
 	file://net/0004-beaglebone-TT3201-MCP2515-fixes.patch \
 	file://net/0005-add-proper-db.txt-for-CRDA.patch \
 	file://net/0006-mcp251x-add-device-tree-support.patch \
+	file://net/0007-net-cpsw-fix-irq_disable-with-threaded-interrupts.patch \
 	file://drm/0001-am33xx-Add-clock-for-the-lcdc-DRM-driver.patch \
 	file://drm/0002-drm-small-fix-in-drm_send_vblank_event.patch \
 	file://drm/0003-drm-cma-add-debugfs-helpers.patch \
@@ -712,6 +713,7 @@ SRC_URI += " \
 	file://capes/0023-capes-reorder-from-GRB-to-RGB-for-Lighting-cape.patch \
 	file://capes/0024-capes-return-written-bytes-for-faux-spidev-device.patch \
 	file://capes/0025-Fix-aspect-ratio-issue-of-720p-in-MT9M114-camera-cap.patch \
+	file://capes/0026-add-argus-ups-cape-support.patch \
 	file://fixes/0001-sync-don-t-block-the-flusher-thread-waiting-on-IO.patch \
 	file://fixes/0002-USB-Fix-USB-device-disconnects-on-resume.patch \
 	file://fixes/0003-beaglebone-switch-uSD-to-4-bit-mode.patch \
