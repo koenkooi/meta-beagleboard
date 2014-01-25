@@ -1,4 +1,4 @@
-From 1575c2f80efb5287d5d20a9a7821be2a5b59c22e Mon Sep 17 00:00:00 2001
+From 9a9382062788784ea87c7f06412674876bf79dd9 Mon Sep 17 00:00:00 2001
 From: Cody Lacey <clacey@ti.com>
 Date: Fri, 18 Oct 2013 12:42:00 -0500
 Subject: [PATCH 3/3] ASoc: McASP: Lift Reset on CLK Dividers when RX/TX
@@ -13,7 +13,7 @@ for another device.
  1 file changed, 34 insertions(+)
 
 diff --git a/sound/soc/davinci/davinci-mcasp.c b/sound/soc/davinci/davinci-mcasp.c
-index 83232c6..7f36228 100644
+index 83232c6..98d559d 100644
 --- a/sound/soc/davinci/davinci-mcasp.c
 +++ b/sound/soc/davinci/davinci-mcasp.c
 @@ -347,6 +347,23 @@ static inline void mcasp_set_ctl_reg(void __iomem *regs, u32 val)
@@ -55,11 +55,11 @@ index 83232c6..7f36228 100644
 +	*  the clock source for another device.
 +	*/
 +	if((pdir & ACLKR) && (rclk_reg & ACLKRE)) {
-+		mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLX_REG, RXCLKRST);
++		mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLR_REG, RXCLKRST);
 +	}
 +
 +	if((pdir & AHCLKR) && (rhclk_reg & AHCLKRE)) {
-+		mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLX_REG, RXHCLKRST);
++		mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLR_REG, RXHCLKRST);
 +	}
  
  	mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLX_REG, TXHCLKRST);
