@@ -1,7 +1,7 @@
-From 4c027c372d2608811813b5566ab4113e10b192f1 Mon Sep 17 00:00:00 2001
+From a02c945e20ceb54974be2bf6240c3f20de8d7bf1 Mon Sep 17 00:00:00 2001
 From: Matt Ranostay <mranostay@gmail.com>
 Date: Fri, 11 Oct 2013 16:21:40 -0700
-Subject: [PATCH 20/24] capes: Add midi cape support
+Subject: [PATCH 20/27] capes: Add midi cape support
 
 Enable UART1 for MIDI cape using DT overlays.
 
@@ -115,5 +115,5 @@ index 0000000..d2c62e4
 +	};
 +};
 -- 
-1.8.4.2
+1.8.5.3
 
