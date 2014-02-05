@@ -710,15 +710,21 @@ SRC_URI += " \
 	file://capes/0020-capes-Add-midi-cape-support.patch \
 	file://capes/0021-remoteproc-PRU-lighting-remoteproc-support.patch \
 	file://capes/0022-Add-PRU-DTS-for-lighting-cape.patch \
-	file://capes/0023-capes-reorder-from-GRB-to-RGB-for-Lighting-cape.patch \
-	file://capes/0024-capes-return-written-bytes-for-faux-spidev-device.patch \
-	file://capes/0025-Fix-aspect-ratio-issue-of-720p-in-MT9M114-camera-cap.patch \
-	file://capes/0026-add-argus-ups-cape-support.patch \
+	file://capes/0023-beaglebone-capes-Added-overlays-for-CBB-Serial-cape.patch \
+	file://capes/0024-capes-reorder-from-GRB-to-RGB-for-Lighting-cape.patch \
+	file://capes/0025-capes-return-written-bytes-for-faux-spidev-device.patch \
+	file://capes/0026-Fix-aspect-ratio-issue-of-720p-in-MT9M114-camera-cap.patch \
+	file://capes/0027-add-argus-ups-cape-support.patch \
+	file://proto/0001-add-new-default-pinmux-based-on-Proto-Cape.patch \
 	file://fixes/0001-sync-don-t-block-the-flusher-thread-waiting-on-IO.patch \
 	file://fixes/0002-USB-Fix-USB-device-disconnects-on-resume.patch \
 	file://fixes/0003-beaglebone-switch-uSD-to-4-bit-mode.patch \
 	file://fixes/0004-mmc-omap_hsmmc-clear-status-flags-before-starting-a-.patch \
 	file://fixes/0005-omap-serial-allow-custom-buad-rate-settings.patch \
+	file://fixes/0006-uvcvideo-Fix-data-type-for-pan-tilt-control.patch \
+	file://fixes/0007-ti_am335x_tsc-touchscreen-jitter-fix.patch \
+	file://fixes/0008-omap-RS485-support-by-Michael-Musset.patch \
+	file://machinekit/0001-Add-dir-changeable-property-to-gpio-of-helper.patch \
 	file://btrfs/0001-decompressor-add-LZ4-decompressor-module.patch \
 	file://btrfs/0002-lib-add-support-for-LZ4-compressed-kernel.patch \
 	file://btrfs/0003-lib-add-lz4-compressor-module.patch \

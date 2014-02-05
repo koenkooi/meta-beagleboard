@@ -1,7 +1,7 @@
-From a0768e91f876f12a63ac3e219a0a43fe133bea93 Mon Sep 17 00:00:00 2001
+From 88ec322367e72527e379542ef33da7631bbb24e6 Mon Sep 17 00:00:00 2001
 From: Matt Ranostay <mranostay@gmail.com>
 Date: Sat, 7 Dec 2013 13:29:43 -0800
-Subject: [PATCH 21/24] remoteproc: PRU lighting remoteproc support
+Subject: [PATCH 21/27] remoteproc: PRU lighting remoteproc support
 
 Multiple downcalls, ioctls, and spidev support to allow driving
 of WS281x LEDS via remoteproc PRU firmware.
@@ -364,5 +364,5 @@ index 6e42db6..36d2ad5 100644
  {
  	struct device *dev = &pdev->dev;
 -- 
-1.8.4.2
+1.8.5.3
 
