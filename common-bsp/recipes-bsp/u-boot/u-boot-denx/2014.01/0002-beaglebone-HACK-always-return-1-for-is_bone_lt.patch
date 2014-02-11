@@ -1,0 +1,25 @@
+From 300ea118459d161e0c89e2bfe96f998bc3b58faa Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Wed, 3 Apr 2013 08:33:28 +0200
+Subject: [PATCH 2/5] beaglebone: HACK: always return 1 for is_bone_lt
+
+This is to make the eMMC flasher work, the EEPROM hasn't been populated yet
+
+Signed-off-by: Koen Kooi <koen@dominion.thruhere.net>
+---
+ board/ti/am335x/board.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Index: git/board/ti/am335x/board.c
+===================================================================
+--- git.orig/board/ti/am335x/board.c	2014-02-06 03:42:00.000000000 -0800
++++ git/board/ti/am335x/board.c	2014-02-06 03:47:03.590556199 -0800
+@@ -477,7 +477,7 @@
+ 	if (board_is_evm_sk(&header))
+ 		config_ddr(303, &ioregs_evmsk, &ddr3_data,
+ 			   &ddr3_cmd_ctrl_data, &ddr3_emif_reg_data, 0);
+-	else if (board_is_bone_lt(&header))
++	else if (board_is_bone_lt(&header) && !board_is_bone(&header))
+ 		config_ddr(400, &ioregs_bonelt,
+ 			   &ddr3_beagleblack_data,
+ 			   &ddr3_beagleblack_cmd_ctrl_data,
