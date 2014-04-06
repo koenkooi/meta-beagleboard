@@ -1,4 +1,4 @@
-From 80ec04f7bb54f1e982449211e9625f7b97342869 Mon Sep 17 00:00:00 2001
+From a5d7dc0e05d490541be348067e4c21394b784baf Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Thu, 6 Dec 2012 13:48:11 +0200
 Subject: [PATCH] dtc: Dynamic symbols & fixup support
@@ -183,7 +183,7 @@ index ee96a25..970c0a3 100644
  };
  
 diff --git a/dtc-lexer.l b/dtc-lexer.l
-index 254d5af..2cef406 100644
+index 3b41bfc..78d5132 100644
 --- a/dtc-lexer.l
 +++ b/dtc-lexer.l
 @@ -112,6 +112,11 @@ static int pop_input_file(void);
@@ -258,10 +258,10 @@ index f412460..e444acf 100644
  	;
  
 diff --git a/dtc.c b/dtc.c
-index d40e220..b19dcd1 100644
+index e3c9653..914530d 100644
 --- a/dtc.c
 +++ b/dtc.c
-@@ -31,6 +31,7 @@ int reservenum;		/* Number of memory reservation slots */
+@@ -29,6 +29,7 @@ int reservenum;		/* Number of memory reservation slots */
  int minsize;		/* Minimum blob size */
  int padsize;		/* Additional padding to blob */
  int phandle_format = PHANDLE_BOTH;	/* Use linux,phandle or phandle properties */
@@ -269,25 +269,32 @@ index d40e220..b19dcd1 100644
  
  static void fill_fullpaths(struct node *tree, const char *prefix)
  {
-@@ -96,6 +97,8 @@ static void  __attribute__ ((noreturn)) usage(void)
- 	fprintf(stderr, "\t-W [no-]<checkname>\n");
- 	fprintf(stderr, "\t-E [no-]<checkname>\n");
- 	fprintf(stderr, "\t\t\tenable or disable warnings and errors\n");
-+	fprintf(stderr, "\t-@\n");
-+	fprintf(stderr, "\t\tSymbols and Fixups support\n");
- 	exit(3);
- }
+@@ -49,7 +50,7 @@ static void fill_fullpaths(struct node *tree, const char *prefix)
  
-@@ -118,7 +121,7 @@ int main(int argc, char *argv[])
- 	minsize    = 0;
- 	padsize    = 0;
- 
--	while ((opt = getopt(argc, argv, "hI:O:o:V:d:R:S:p:fqb:i:vH:sW:E:"))
-+	while ((opt = getopt(argc, argv, "hI:O:o:V:d:R:S:p:fqb:i:vH:sW:E:@"))
- 			!= EOF) {
- 		switch (opt) {
- 		case 'I':
-@@ -183,7 +186,9 @@ int main(int argc, char *argv[])
+ /* Usage related data. */
+ static const char usage_synopsis[] = "dtc [options] <input file>";
+-static const char usage_short_opts[] = "qI:O:o:V:d:R:S:p:fb:i:H:sW:E:hv";
++static const char usage_short_opts[] = "qI:O:o:V:d:R:S:p:fb:i:H:sW:E:hv:@";
+ static struct option const usage_long_opts[] = {
+ 	{"quiet",            no_argument, NULL, 'q'},
+ 	{"in-format",         a_argument, NULL, 'I'},
+@@ -69,6 +70,7 @@ static struct option const usage_long_opts[] = {
+ 	{"error",             a_argument, NULL, 'E'},
+ 	{"help",             no_argument, NULL, 'h'},
+ 	{"version",          no_argument, NULL, 'v'},
++	{"fixups",           no_argument, NULL, '@'},
+ 	{NULL,               no_argument, NULL, 0x0},
+ };
+ static const char * const usage_opts_help[] = {
+@@ -97,6 +99,7 @@ static const char * const usage_opts_help[] = {
+ 	 "\t\tboth   - Both \"linux,phandle\" and \"phandle\" properties",
+ 	"\n\tEnable/disable warnings (prefix with \"no-\")",
+ 	"\n\tEnable/disable errors (prefix with \"no-\")",
++	"\n\tSymbols and fixups: -@\n",
+ 	"\n\tPrint this help and exit",
+ 	"\n\tPrint version and exit",
+ 	NULL,
+@@ -184,7 +187,9 @@ int main(int argc, char *argv[])
  		case 'E':
  			parse_checks_option(false, true, optarg);
  			break;
@@ -296,10 +303,10 @@ index d40e220..b19dcd1 100644
 +			symbol_fixup_support = 1;
 +			break;
  		case 'h':
+ 			usage(NULL);
  		default:
- 			usage();
 diff --git a/dtc.h b/dtc.h
-index 3e42a07..0c8ecf6 100644
+index 264a20c..8c9059b 100644
 --- a/dtc.h
 +++ b/dtc.h
 @@ -54,6 +54,7 @@ extern int reservenum;		/* Number of memory reservation slots */
@@ -310,7 +317,7 @@ index 3e42a07..0c8ecf6 100644
  
  #define PHANDLE_LEGACY	0x1
  #define PHANDLE_EPAPR	0x2
-@@ -133,6 +134,25 @@ struct label {
+@@ -132,6 +133,25 @@ struct label {
  	struct label *next;
  };
  
@@ -336,7 +343,7 @@ index 3e42a07..0c8ecf6 100644
  struct property {
  	int deleted;
  	char *name;
-@@ -159,6 +179,12 @@ struct node {
+@@ -158,6 +178,12 @@ struct node {
  	int addr_cells, size_cells;
  
  	struct label *labels;
@@ -349,7 +356,7 @@ index 3e42a07..0c8ecf6 100644
  };
  
  #define for_each_label_withdel(l0, l) \
-@@ -182,6 +208,18 @@ struct node {
+@@ -181,6 +207,18 @@ struct node {
  	for_each_child_withdel(n, c) \
  		if (!(c)->deleted)
  
@@ -526,5 +533,5 @@ index 665dad7..6237715 100644
  }
  
 -- 
-1.8.1.4
+1.8.3.4
 
