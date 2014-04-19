@@ -710,11 +710,17 @@ SRC_URI += " \
 	file://capes/0020-capes-Add-midi-cape-support.patch \
 	file://capes/0021-remoteproc-PRU-lighting-remoteproc-support.patch \
 	file://capes/0022-Add-PRU-DTS-for-lighting-cape.patch \
-	file://capes/0023-beaglebone-capes-Added-overlays-for-CBB-Serial-cape.patch \
-	file://capes/0024-capes-reorder-from-GRB-to-RGB-for-Lighting-cape.patch \
-	file://capes/0025-capes-return-written-bytes-for-faux-spidev-device.patch \
-	file://capes/0026-Fix-aspect-ratio-issue-of-720p-in-MT9M114-camera-cap.patch \
-	file://capes/0027-add-argus-ups-cape-support.patch \
+	file://capes/0023-apply-htu21-patch.patch \
+	file://capes/0024-beaglebone-capes-Added-overlays-for-CBB-Serial-cape.patch \
+	file://capes/0025-add-support-for-weather-cape-rev-b.patch \
+	file://capes/0026-capes-reorder-from-GRB-to-RGB-for-Lighting-cape.patch \
+	file://capes/0027-capes-Add-cape-universal-overlay-files-More-details-.patch \
+	file://capes/0028-capes-return-written-bytes-for-faux-spidev-device.patch \
+	file://capes/0029-Fix-aspect-ratio-issue-of-720p-in-MT9M114-camera-cap.patch \
+	file://capes/0030-remove-1-wire-gpio-in-weather-cape-rev-B.patch \
+	file://capes/0031-add-argus-ups-cape-support.patch \
+	file://capes/0032-cape-add-cape-bone-ibb-00A0.dts.patch \
+	file://capes/0033-adds-DTS-for-CryptoCape.patch \
 	file://proto/0001-add-new-default-pinmux-based-on-Proto-Cape.patch \
 	file://fixes/0001-sync-don-t-block-the-flusher-thread-waiting-on-IO.patch \
 	file://fixes/0002-USB-Fix-USB-device-disconnects-on-resume.patch \
@@ -723,7 +729,8 @@ SRC_URI += " \
 	file://fixes/0005-omap-serial-allow-custom-buad-rate-settings.patch \
 	file://fixes/0006-uvcvideo-Fix-data-type-for-pan-tilt-control.patch \
 	file://fixes/0007-ti_am335x_tsc-touchscreen-jitter-fix.patch \
-	file://fixes/0008-omap-RS485-support-by-Michael-Musset.patch \
+	file://fixes/0008-deb-pkg-sync-with-v3.14.patch \
+	file://fixes/0009-omap-RS485-support-by-Michael-Musset.patch \
 	file://machinekit/0001-Add-dir-changeable-property-to-gpio-of-helper.patch \
 	file://btrfs/0001-decompressor-add-LZ4-decompressor-module.patch \
 	file://btrfs/0002-lib-add-support-for-LZ4-compressed-kernel.patch \

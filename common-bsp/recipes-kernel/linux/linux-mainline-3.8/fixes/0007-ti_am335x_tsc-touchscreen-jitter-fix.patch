@@ -1,7 +1,7 @@
-From 8a8a0c4297145ad5eccf6ede4fea79f3aa710ec8 Mon Sep 17 00:00:00 2001
+From 9bf525c1b14a08a9aa731cd28ddad5d68a2e32a1 Mon Sep 17 00:00:00 2001
 From: Micka <mickamusset@gmail.com>
 Date: Wed, 22 Jan 2014 15:19:22 -0600
-Subject: [PATCH 7/8] ti_am335x_tsc: touchscreen jitter fix
+Subject: [PATCH 7/9] ti_am335x_tsc: touchscreen jitter fix
 
 Signed-off-by: Micka <mickamusset@gmail.com>
 ---
@@ -117,5 +117,5 @@ index 8933c91..ed83043 100644
  	err = input_register_device(input_dev);
  	if (err)
 -- 
-1.8.5.3
+1.9.0
 

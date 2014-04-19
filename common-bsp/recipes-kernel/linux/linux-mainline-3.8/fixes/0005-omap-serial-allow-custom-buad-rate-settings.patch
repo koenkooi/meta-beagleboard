@@ -1,7 +1,7 @@
-From 9ae20326e489687159b3dd75449f02e0b8bc5890 Mon Sep 17 00:00:00 2001
+From 4a651029d223bc6243dbd82585fcbe14647f726b Mon Sep 17 00:00:00 2001
 From: Matt Ranostay <mranostay@gmail.com>
 Date: Tue, 17 Dec 2013 00:57:06 -0800
-Subject: [PATCH 5/8] omap-serial: allow custom buad rate settings
+Subject: [PATCH 5/9] omap-serial: allow custom buad rate settings
 
 Current custom baud rate settings are broken due a function call from
 serial_core.c that returns -EINVAL from omap-serial.c.
@@ -27,5 +27,5 @@ index 57d6b29..717cf32 100644
  
  static const char *
 -- 
-1.8.5.3
+1.9.0
 

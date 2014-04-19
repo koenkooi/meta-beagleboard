@@ -1,7 +1,7 @@
-From 29f9e0da1d44d2695c7b698e2f1ac2ce704c7215 Mon Sep 17 00:00:00 2001
+From 62413d6e6e3a373a62e780005264c1b666864fc0 Mon Sep 17 00:00:00 2001
 From: Francesco Lavra <francescolavra.fl@gmail.com>
 Date: Sat, 29 Jun 2013 06:25:12 +0000
-Subject: [PATCH 4/8] mmc: omap_hsmmc: clear status flags before starting a new
+Subject: [PATCH 4/9] mmc: omap_hsmmc: clear status flags before starting a new
  command
 
 Commit 1f6b9fa40e76fffaaa0b3bd6a0bfdcf1cdc06efa consolidated writes to
@@ -43,5 +43,5 @@ index e2b97df..04daf72 100644
  	}
  
 -- 
-1.8.5.3
+1.9.0
 
