@@ -1,7 +1,7 @@
-From 96ec29c0c427d05b55b018c8fd3f98b216e5cc4d Mon Sep 17 00:00:00 2001
+From a1d5fe892bb98c89f99072f16959e742b55af202 Mon Sep 17 00:00:00 2001
 From: Matt Ranostay <mranostay@gmail.com>
 Date: Sun, 15 Dec 2013 00:44:35 -0800
-Subject: [PATCH 22/27] Add PRU DTS for lighting cape
+Subject: [PATCH 22/33] Add PRU DTS for lighting cape
 
 Signed-off-by: Matt Ranostay <mranostay@gmail.com>
 ---
@@ -295,5 +295,5 @@ index 0000000..431e487
 +	};
 +};
 -- 
-1.8.5.3
+1.9.0
 

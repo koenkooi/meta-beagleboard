@@ -1,7 +1,7 @@
-From 94daa0c09715d5e67f37a018476d6ebfbe8a1b93 Mon Sep 17 00:00:00 2001
+From 2b705ce3d710f25560cb63581118d9463c5b55fd Mon Sep 17 00:00:00 2001
 From: Sarah Sharp <sarah.a.sharp@linux.intel.com>
 Date: Tue, 3 Sep 2013 15:52:22 +0200
-Subject: [PATCH 2/8] USB: Fix USB device disconnects on resume.
+Subject: [PATCH 2/9] USB: Fix USB device disconnects on resume.
 
 The TLDR; version:
 
@@ -162,5 +162,5 @@ index 2a89588..c2eeed5 100644
  		usb_lock_device(udev);
  		ret = usb_remote_wakeup(udev);
 -- 
-1.8.5.3
+1.9.0
 
