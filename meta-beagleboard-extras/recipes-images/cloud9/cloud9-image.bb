@@ -7,7 +7,8 @@ FATPAYLOAD = "${datadir}/beaglebone-getting-started/*"
 ROOTFSTYPE_beaglebone = "ext4"
 
 IMAGE_INSTALL += " \
-	systemd-analyze \
+        dtc \
+ 	systemd-analyze \
 	cloud9 \
 	gateone \
 	mpd \
