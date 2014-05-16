@@ -1,4 +1,4 @@
-From 179bc5d81531f8c0c0ede2c180f5e58a5fd42eca Mon Sep 17 00:00:00 2001
+From 1a89322ca58805b5c41280f122db2bc4f965e4fd Mon Sep 17 00:00:00 2001
 From: Alexander Aring <alex.aring@gmail.com>
 Date: Tue, 5 Feb 2013 04:25:35 +0000
 Subject: [PATCH 03/23] wpan: whitespace fix
@@ -23,5 +23,5 @@ index 199b922..98c867b 100644
  	return 0;
  }
 -- 
-1.8.2.1
+1.9.0
 

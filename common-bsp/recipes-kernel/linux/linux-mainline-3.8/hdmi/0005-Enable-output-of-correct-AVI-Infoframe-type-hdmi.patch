@@ -1,4 +1,4 @@
-From 0f32ae1d5086c237269715da2dc42a905ae2ab0a Mon Sep 17 00:00:00 2001
+From 8526d7cbfc1a045f5b0662dee4f13ad9550d2552 Mon Sep 17 00:00:00 2001
 From: Darren Etheridge <detheridge@ti.com>
 Date: Tue, 7 May 2013 21:22:27 -0500
 Subject: [PATCH 05/27] Enable output of correct AVI Infoframe type hdmi
@@ -8,7 +8,7 @@ Subject: [PATCH 05/27] Enable output of correct AVI Infoframe type hdmi
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/gpu/drm/i2c/tda998x_drv.c b/drivers/gpu/drm/i2c/tda998x_drv.c
-index e3e9101..7c64696 100644
+index a03bc32..03d58b1 100644
 --- a/drivers/gpu/drm/i2c/tda998x_drv.c
 +++ b/drivers/gpu/drm/i2c/tda998x_drv.c
 @@ -593,9 +593,9 @@ tda998x_avi_infoframe_enable(struct drm_encoder *encoder,
@@ -24,5 +24,5 @@ index e3e9101..7c64696 100644
  
  /* loopup table for CEA values to VIDFORMAT values taken from NXP datasheet */
 -- 
-1.8.2.1
+1.9.0
 

@@ -1,4 +1,4 @@
-From d1b00f7ce581c5e36ab5cc806331bab10e4741cd Mon Sep 17 00:00:00 2001
+From 69ad9c5e249bb587ce61b1fadf40f9569924c619 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Mon, 4 Mar 2013 18:53:36 +0200
 Subject: [PATCH 111/184] i2c: DTify pca954x driver
@@ -151,5 +151,5 @@ index 8e43872..25aa010 100644
  
  	/* Now create an adapter for each channel */
 -- 
-1.8.2.1
+1.9.0
 

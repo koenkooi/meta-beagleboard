@@ -1,4 +1,4 @@
-From 13597639f3c749489852fae0c5aaa000aa985350 Mon Sep 17 00:00:00 2001
+From 0d066ad984b01f92bcb02fca8913f8bafc6c4120 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Tue, 15 Jan 2013 11:26:27 +0200
 Subject: [PATCH 053/184] of-i2c: Export single device registration method
@@ -167,5 +167,5 @@ index cfb545c..53fca8f 100644
  {
  	return;
 -- 
-1.8.2.1
+1.9.0
 

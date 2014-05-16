@@ -1,4 +1,4 @@
-From 75ce65cb5e5b9ffe9df2ad135fb3f3748bed3f4c Mon Sep 17 00:00:00 2001
+From c95dd24b1ee8409b69454ad95b399257e41a2697 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Fri, 8 Mar 2013 16:39:10 +0200
 Subject: [PATCH 118/184] tilcdc: Enable reduced blanking check only on
@@ -104,5 +104,5 @@ index 7065dfa..6f9d727 100644
  
  static struct drm_encoder *tfp410_connector_best_encoder(
 -- 
-1.8.2.1
+1.9.0
 

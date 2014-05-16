@@ -1,4 +1,4 @@
-From 2c42927f395aaf4318e911d0910ba6c1b35622a1 Mon Sep 17 00:00:00 2001
+From 33091b77d285bd2468826232ac005f599df55319 Mon Sep 17 00:00:00 2001
 From: Daniel Kurtz <djkurtz@chromium.org>
 Date: Mon, 17 Dec 2012 17:22:02 +0800
 Subject: [PATCH 17/57] CHROMIUM: Input: atmel_mxt_ts - define helper functions
@@ -117,5 +117,5 @@ index b9a0de2..b53e839 100644
  
  			error = __mxt_read_reg(data->client, addr, size, obuf);
 -- 
-1.8.2.1
+1.9.0
 

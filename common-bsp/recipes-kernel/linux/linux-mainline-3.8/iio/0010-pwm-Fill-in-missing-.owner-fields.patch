@@ -1,4 +1,4 @@
-From d9c5d829c1e11d572d36fae5e9f8b0d43a7253f9 Mon Sep 17 00:00:00 2001
+From b6b59f504e96f0a235b5e65d66c13285d96c2467 Mon Sep 17 00:00:00 2001
 From: Thierry Reding <thierry.reding@gmail.com>
 Date: Wed, 12 Jun 2013 13:18:29 +0200
 Subject: [PATCH 10/11] pwm: Fill in missing .owner fields
@@ -574,5 +574,5 @@ index 30c0e2b..1ddff7f 100644
  	},
  	.probe = tegra_pwm_probe,
 -- 
-1.8.2.1
+1.9.0
 

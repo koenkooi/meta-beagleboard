@@ -1,7 +1,7 @@
-From ba2a6b760563023c8692fa4ff3ef7cda693d3bd5 Mon Sep 17 00:00:00 2001
+From 72d2c10078cbbfce178fa803276750fc25555c12 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 10 Jul 2013 23:51:05 +0300
-Subject: [PATCH 1/8] capes: Add bacon cape
+Subject: [PATCH 01/40] capes: Add bacon cape
 
 This is the full Linux driver enable bacon cape definition.
 ---
@@ -247,5 +247,5 @@ index 0000000..87f5f01
 +
 +};
 -- 
-1.8.2.1
+1.9.0
 

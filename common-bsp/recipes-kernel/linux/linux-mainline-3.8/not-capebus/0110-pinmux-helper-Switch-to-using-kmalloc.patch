@@ -1,4 +1,4 @@
-From fdd82979eaffcd219dd8197ff646da18fb2e768b Mon Sep 17 00:00:00 2001
+From 1048c8b5756166e2f1e1a258e2760be865d04dc0 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Thu, 7 Mar 2013 09:54:38 +0200
 Subject: [PATCH 110/184] pinmux-helper: Switch to using kmalloc
@@ -64,5 +64,5 @@ index 84058e1..5074365 100644
  	devm_kfree(dev, data);
  
 -- 
-1.8.2.1
+1.9.0
 

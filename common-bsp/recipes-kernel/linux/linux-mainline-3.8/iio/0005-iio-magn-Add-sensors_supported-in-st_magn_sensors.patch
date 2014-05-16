@@ -1,4 +1,4 @@
-From 887c6851f42facff32a06b7ea22e787285718699 Mon Sep 17 00:00:00 2001
+From c27e2b8d4e7efc85eb9955f475f516fe7d8739b7 Mon Sep 17 00:00:00 2001
 From: Denis Ciocca <denis.ciocca@st.com>
 Date: Tue, 29 Jan 2013 12:27:30 +0100
 Subject: [PATCH 05/11] iio:magn: Add sensors_supported in st_magn_sensors
@@ -34,5 +34,5 @@ index 1dfcb41..a69fbe1 100644
  		.odr = {
  			.addr = ST_MAGN_2_ODR_ADDR,
 -- 
-1.8.2.1
+1.9.0
 

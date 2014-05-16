@@ -1,4 +1,4 @@
-From 38d2a6ccaad421bb9f010df068f594ba8f4285ea Mon Sep 17 00:00:00 2001
+From 2a63598df0867a12309e044112fd8555dfa915b4 Mon Sep 17 00:00:00 2001
 From: Darren Etheridge <detheridge@ti.com>
 Date: Fri, 22 Mar 2013 15:47:50 -0500
 Subject: [PATCH 143/184] tilcdc added some extra debug, and softened the
@@ -9,7 +9,7 @@ Subject: [PATCH 143/184] tilcdc added some extra debug, and softened the
  1 file changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/gpu/drm/tilcdc/tilcdc_crtc.c b/drivers/gpu/drm/tilcdc/tilcdc_crtc.c
-index edafddc..a98b094 100644
+index 9265893..c7b41d5 100644
 --- a/drivers/gpu/drm/tilcdc/tilcdc_crtc.c
 +++ b/drivers/gpu/drm/tilcdc/tilcdc_crtc.c
 @@ -449,13 +449,14 @@ int tilcdc_crtc_mode_valid(struct drm_crtc *crtc, struct drm_display_mode *mode,
@@ -47,5 +47,5 @@ index edafddc..a98b094 100644
  		}
  	}
 -- 
-1.8.2.1
+1.9.0
 

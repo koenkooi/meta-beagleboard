@@ -1,4 +1,4 @@
-From a6ab63edfeda7438237c57e6a54589eb8a33883a Mon Sep 17 00:00:00 2001
+From 497a7a491406279bce8b6675f2ca460dfa324090 Mon Sep 17 00:00:00 2001
 From: Benson Leung <bleung@chromium.org>
 Date: Wed, 4 Apr 2012 19:34:52 -0700
 Subject: [PATCH 11/57] CHROMIUM: Input: atmel_mxt_ts - Increase FWRESET_TIME
@@ -31,5 +31,5 @@ index 0aae3fb..b9b9b3f 100644
  /* Command to unlock bootloader */
  #define MXT_UNLOCK_CMD_MSB	0xaa
 -- 
-1.8.2.1
+1.9.0
 

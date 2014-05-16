@@ -1,4 +1,4 @@
-From 8d0227573d8ad755935ef7cc0484ce93a6b68c26 Mon Sep 17 00:00:00 2001
+From 45d39e69595ae77fae47d3620f2dc3c4301ddffa Mon Sep 17 00:00:00 2001
 From: Koen Kooi <koen@dominion.thruhere.net>
 Date: Fri, 28 Dec 2012 14:41:10 +0100
 Subject: [PATCH 002/184] add 'defconfig' file to use as .config
@@ -4013,5 +4013,5 @@ index 0000000..5eb94b7
 +CONFIG_MPILIB=m
 +CONFIG_OID_REGISTRY=m
 -- 
-1.8.2.1
+1.9.0
 

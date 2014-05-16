@@ -1,4 +1,4 @@
-From c2529aae96f55ffeb21c6cc48a1e0ceac99ac3fb Mon Sep 17 00:00:00 2001
+From b285a01ed9b7d8e6b1885c69127fb9297c8cac8a Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Fri, 28 Dec 2012 11:34:15 +0200
 Subject: [PATCH 012/184] Fix platform device resource linking
@@ -214,5 +214,5 @@ index a9ded9a..e48c2d5 100644
 +
  #endif /* _PLATFORM_DEVICE_H_ */
 -- 
-1.8.2.1
+1.9.0
 

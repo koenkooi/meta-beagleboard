@@ -1,4 +1,4 @@
-From a96d108167049cf5025ce6e96369fd45fe56ed53 Mon Sep 17 00:00:00 2001
+From 69fde29f2d6d50b35c3ae5c127e3b7000bae268d Mon Sep 17 00:00:00 2001
 From: "Hebbar, Gururaja" <gururaja.hebbar@ti.com>
 Date: Mon, 29 Oct 2012 19:18:47 +0530
 Subject: [PATCH 056/184] ASoC: davinci-mcasp: Add pinctrl support
@@ -41,5 +41,5 @@ index 55e2bf6..83d96eb 100644
  
  	ret = pm_runtime_get_sync(&pdev->dev);
 -- 
-1.8.2.1
+1.9.0
 

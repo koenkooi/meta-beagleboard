@@ -1,4 +1,4 @@
-From 5921e73de6d2aa285d7f0723920895f1e7322d3d Mon Sep 17 00:00:00 2001
+From aee667a06908626d6f5220bc4bce6ea7619051e8 Mon Sep 17 00:00:00 2001
 From: Koen Kooi <koen@dominion.thruhere.net>
 Date: Thu, 13 Dec 2012 14:13:31 +0100
 Subject: [PATCH 4/5] am335x-evm*: hack around i2c node names
@@ -36,5 +36,5 @@ index f050c46..2546724 100644
  			clock-frequency = <400000>;
  
 -- 
-1.8.2.1
+1.9.0
 

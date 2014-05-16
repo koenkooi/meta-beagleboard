@@ -1,7 +1,7 @@
-From 4d9dcd334b57363d052d0faf91b09d89078452b2 Mon Sep 17 00:00:00 2001
+From 751b040366cfe316b99410412d92248561f4d0db Mon Sep 17 00:00:00 2001
 From: Hieu Duong <me@hieuduong.com>
 Date: Thu, 20 Mar 2014 16:21:45 -0500
-Subject: [PATCH 23/33] apply htu21 patch
+Subject: [PATCH 24/40] apply htu21 patch
 
 Signed-off-by: Hieu Duong <me@hieuduong.com>
 ---

@@ -1,4 +1,4 @@
-From 12c175ef81d9219b6060fd2a5ab1d85fe5e03916 Mon Sep 17 00:00:00 2001
+From 95482075e1c715b828c4de8294aed6fedfb15d0f Mon Sep 17 00:00:00 2001
 From: Matt Porter <mporter@ti.com>
 Date: Thu, 6 Sep 2012 17:40:42 -0400
 Subject: [PATCH 15/35] ARM: edma: add AM33XX support to the private EDMA API
@@ -15,7 +15,7 @@ Signed-off-by: Matt Porter <mporter@ti.com>
  2 files changed, 303 insertions(+), 9 deletions(-)
 
 diff --git a/arch/arm/common/edma.c b/arch/arm/common/edma.c
-index 3580eca..beeb1d2 100644
+index 6f93acf..4c07461 100644
 --- a/arch/arm/common/edma.c
 +++ b/arch/arm/common/edma.c
 @@ -24,6 +24,13 @@
@@ -400,5 +400,5 @@ index 2344ea2..ffc1fb2 100644
  
  #endif
 -- 
-1.8.2.1
+1.9.0
 

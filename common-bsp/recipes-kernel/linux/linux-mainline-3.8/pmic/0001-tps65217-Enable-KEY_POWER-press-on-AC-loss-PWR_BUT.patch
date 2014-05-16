@@ -1,4 +1,4 @@
-From ec33e1842274e7c4d0c092585673bae590e4885e Mon Sep 17 00:00:00 2001
+From 95bc5970bfd76b941432261a0608b29f5ca70b89 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Mon, 27 May 2013 17:14:23 +0300
 Subject: [PATCH 1/2] tps65217: Enable KEY_POWER press on AC loss / PWR_BUT
@@ -201,5 +201,5 @@ index 290762f..b138fa3 100644
  
  static inline struct tps65217 *dev_to_tps65217(struct device *dev)
 -- 
-1.8.2.1
+1.9.0
 

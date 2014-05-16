@@ -1,7 +1,7 @@
-From 4f678001ab77a1c33843a12b15760fc3506f6b62 Mon Sep 17 00:00:00 2001
+From 40add915c9acc0258db0379e7dea23eabc62ad22 Mon Sep 17 00:00:00 2001
 From: "Patil, Rachna" <rachna@ti.com>
 Date: Wed, 12 Jun 2013 18:58:06 +0200
-Subject: [PATCH 05/20] input: ti_am33x_tsc: Add DT support
+Subject: [PATCH 05/19] input: ti_am33x_tsc: Add DT support
 
 This patch adds DT support to touch driver. It also provides a binding
 document which is used by the MFD and IIO part of the device.
@@ -299,7 +299,7 @@ index 90ccfc0..ebce3d3 100644
  	cell->pdata_size = sizeof(tscadc);
  
 diff --git a/include/linux/input/ti_am335x_tsc.h b/include/linux/input/ti_am335x_tsc.h
-index 6a66b4d..c0bf08b8 100644
+index 6a66b4d..c0bf08b 100644
 --- a/include/linux/input/ti_am335x_tsc.h
 +++ b/include/linux/input/ti_am335x_tsc.h
 @@ -28,7 +28,7 @@
@@ -312,5 +312,5 @@ index 6a66b4d..c0bf08b8 100644
  };
  
 -- 
-1.8.2.1
+1.9.0
 

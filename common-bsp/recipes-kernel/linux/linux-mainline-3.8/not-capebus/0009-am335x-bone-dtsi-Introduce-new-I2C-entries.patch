@@ -1,4 +1,4 @@
-From 56365714431ca19c6eb840cd0d6da7b5a159ed2b Mon Sep 17 00:00:00 2001
+From 027d479259b9bbb0ca73e0687756f5d02e251b63 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Fri, 14 Dec 2012 14:36:38 +0200
 Subject: [PATCH 009/184] am335x-bone-dtsi: Introduce new I2C entries
@@ -55,5 +55,5 @@ index b084324..312ded8 100644
  
  /include/ "tps65217.dtsi"
 -- 
-1.8.2.1
+1.9.0
 

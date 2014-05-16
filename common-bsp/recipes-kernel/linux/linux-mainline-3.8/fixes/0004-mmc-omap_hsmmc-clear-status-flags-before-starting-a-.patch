@@ -1,4 +1,4 @@
-From 62413d6e6e3a373a62e780005264c1b666864fc0 Mon Sep 17 00:00:00 2001
+From d502c1a25770f1a152d4c4847b2690002fdc951c Mon Sep 17 00:00:00 2001
 From: Francesco Lavra <francescolavra.fl@gmail.com>
 Date: Sat, 29 Jun 2013 06:25:12 +0000
 Subject: [PATCH 4/9] mmc: omap_hsmmc: clear status flags before starting a new

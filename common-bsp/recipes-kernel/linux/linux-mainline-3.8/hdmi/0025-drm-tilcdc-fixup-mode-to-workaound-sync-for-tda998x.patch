@@ -1,4 +1,4 @@
-From be17ff54f95af15fe293ed8a1c512a5dc652d7cc Mon Sep 17 00:00:00 2001
+From 9ce76ae8369b1ba3997c283843f74ecda6307e98 Mon Sep 17 00:00:00 2001
 From: Cody Lacey <clacey@ti.com>
 Date: Fri, 9 Aug 2013 14:07:01 -0500
 Subject: [PATCH 25/27] drm/tilcdc fixup mode to workaound sync for tda998x
@@ -51,5 +51,5 @@ index 667540c..8d72c4d 100644
  		.commit         = drm_i2c_encoder_commit,
  		.mode_set       = drm_i2c_encoder_mode_set,
 -- 
-1.8.2.1
+1.9.0
 

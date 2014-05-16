@@ -1,4 +1,4 @@
-From 3d8f8904b1c9f73b8d66a6db82a4b3f148c6d463 Mon Sep 17 00:00:00 2001
+From 00d71fa859d804d63bc3778a31babf07fc04e81e Mon Sep 17 00:00:00 2001
 From: Peter Ujfalusi <peter.ujfalusi@ti.com>
 Date: Fri, 21 Dec 2012 01:44:01 -0800
 Subject: [PATCH 4/6] leds: leds-pwm: Add device tree bindings
@@ -240,5 +240,5 @@ index 46f4e44..a1ea5f6 100644
  };
  
 -- 
-1.8.2.1
+1.9.0
 

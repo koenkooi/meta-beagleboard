@@ -1,7 +1,7 @@
-From 6031f385fce745ea82eae4e6d90ca947c525c894 Mon Sep 17 00:00:00 2001
+From b3cec152181010370807df688ff3c7c8d33b604b Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 12 Jun 2013 18:58:13 +0200
-Subject: [PATCH 10/20] mfd: ti_tscadc: deal with partial activation
+Subject: [PATCH 10/19] mfd: ti_tscadc: deal with partial activation
 
 Fix the mfd device in the case where a subdevice might not be activated.
 
@@ -110,5 +110,5 @@ index e36ae41..fe54ba4 100644
  	u32 reg_se_cache;
  	spinlock_t reg_lock;
 -- 
-1.8.2.1
+1.9.0
 

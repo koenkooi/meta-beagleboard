@@ -1,4 +1,4 @@
-From cb883d1d5a175125f79bbf85296a30f8e0abfe4e Mon Sep 17 00:00:00 2001
+From c9467025c92fd2a5088b61d492fae5a5c1365a95 Mon Sep 17 00:00:00 2001
 From: Steffen Trumtrar <s.trumtrar@pengutronix.de>
 Date: Wed, 19 Dec 2012 16:37:00 +0530
 Subject: [PATCH 05/48] fbmon: add of_videomode helpers
@@ -100,5 +100,5 @@ index 100a176..58b9860 100644
  				       struct fb_videomode *fbmode);
  
 -- 
-1.8.2.1
+1.9.0
 

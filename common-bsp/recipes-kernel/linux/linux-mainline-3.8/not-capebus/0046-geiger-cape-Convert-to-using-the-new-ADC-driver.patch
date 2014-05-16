@@ -1,4 +1,4 @@
-From 49c11d65a7cdfa0a3ad24ea979007c87c0eb4f76 Mon Sep 17 00:00:00 2001
+From b01d83859196ba18bb14588e14417ecfc40d3825 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 9 Jan 2013 14:53:59 +0200
 Subject: [PATCH 046/184] geiger-cape: Convert to using the new ADC driver
@@ -47,5 +47,5 @@ index 67ec568..39e7d38 100644
  
  			bone-cape-geiger {
 -- 
-1.8.2.1
+1.9.0
 

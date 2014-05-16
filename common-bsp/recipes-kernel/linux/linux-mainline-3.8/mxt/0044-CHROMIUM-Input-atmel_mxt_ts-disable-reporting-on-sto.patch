@@ -1,4 +1,4 @@
-From 30ccd94b228f161b271552994a0cc6eb0fb64bb5 Mon Sep 17 00:00:00 2001
+From 5db4868e58375586bc617bf0939caddfe3f55c13 Mon Sep 17 00:00:00 2001
 From: Benson Leung <bleung@chromium.org>
 Date: Fri, 10 Aug 2012 18:43:52 -0700
 Subject: [PATCH 44/57] CHROMIUM: Input: atmel_mxt_ts - disable reporting on
@@ -49,5 +49,5 @@ index f13ef67..33b564b 100644
  
  static int mxt_input_open(struct input_dev *dev)
 -- 
-1.8.2.1
+1.9.0
 

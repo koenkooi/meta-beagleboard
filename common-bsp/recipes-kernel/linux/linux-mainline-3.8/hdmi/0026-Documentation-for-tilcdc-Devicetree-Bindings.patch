@@ -1,4 +1,4 @@
-From 648747b04ef4b44f378f2d68a7e138900729046a Mon Sep 17 00:00:00 2001
+From f9116741825ff6a0a56c49fa3444436979e1ce17 Mon Sep 17 00:00:00 2001
 From: Cody Lacey <clacey@ti.com>
 Date: Fri, 9 Aug 2013 14:10:45 -0500
 Subject: [PATCH 26/27] Documentation for tilcdc Devicetree Bindings
@@ -167,5 +167,5 @@ index 0000000..fff10da
 +		ti,hwmods = "lcdc";
 +	};
 -- 
-1.8.2.1
+1.9.0
 

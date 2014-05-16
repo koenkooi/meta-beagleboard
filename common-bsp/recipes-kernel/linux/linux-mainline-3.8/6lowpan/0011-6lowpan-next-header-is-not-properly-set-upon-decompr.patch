@@ -1,4 +1,4 @@
-From cc7a1b2d46edf9f5f2c2b2713184ff4a27303487 Mon Sep 17 00:00:00 2001
+From 1de8d79ab1473758754825af5502bc0ba2dc7d30 Mon Sep 17 00:00:00 2001
 From: Tony Cheneau <tony.cheneau@amnesiak.org>
 Date: Mon, 25 Mar 2013 23:59:22 -0400
 Subject: [PATCH 11/23] 6lowpan: next header is not properly set upon
@@ -29,5 +29,5 @@ index 43b95ca..9f53904 100644
  	/* Not fragmented package */
  	hdr.payload_len = htons(skb->len);
 -- 
-1.8.2.1
+1.9.0
 

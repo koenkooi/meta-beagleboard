@@ -1,4 +1,4 @@
-From a0c9055a1ac9a98cad7607876d1af355ddb77630 Mon Sep 17 00:00:00 2001
+From 360296e714778fff0f3c85e247e6e07009f93437 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Thu, 6 Dec 2012 13:44:10 +0200
 Subject: [PATCH 018/184] fdtdump: properly handle multi-string properties
@@ -41,5 +41,5 @@ index 207a46d..d4fa6d7 100644
  		printf(" = <");
  		for (i = 0; i < len; i += 4)
 -- 
-1.8.2.1
+1.9.0
 

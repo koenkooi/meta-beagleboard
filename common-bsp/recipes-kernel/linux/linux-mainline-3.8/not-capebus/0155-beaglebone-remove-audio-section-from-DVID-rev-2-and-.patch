@@ -1,4 +1,4 @@
-From abb21a5b326b3d10f8c9bd8d428872dd63345172 Mon Sep 17 00:00:00 2001
+From 6cd75dc93ef96c3e73d94f80dac09ecacfc64866 Mon Sep 17 00:00:00 2001
 From: Koen Kooi <koen@dominion.thruhere.net>
 Date: Wed, 3 Apr 2013 15:59:07 +0200
 Subject: [PATCH 155/184] beaglebone: remove audio section from DVID rev 2 and
@@ -91,5 +91,5 @@ index 34ced98..a3cd39d 100644
 -	};
  };
 -- 
-1.8.2.1
+1.9.0
 

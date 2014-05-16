@@ -1,4 +1,4 @@
-From 6a90bb43fef830eced0b4c65d8cca19932f78c2f Mon Sep 17 00:00:00 2001
+From b6f0dbfc1460a08cdec860e6227b6f92a727ae5d Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Thu, 11 Apr 2013 18:14:52 +0300
 Subject: [PATCH 03/11] rstctl: Reset control subsystem
@@ -1049,5 +1049,5 @@ index 0000000..b2e674a
 +
 +#endif
 -- 
-1.8.2.1
+1.9.0
 

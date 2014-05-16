@@ -1,7 +1,7 @@
-From 7088a96a58a312f33a1b23ebb77dcf69106adc82 Mon Sep 17 00:00:00 2001
+From 758c8df23ca8af3cbe916acd1492c2f1f8191e86 Mon Sep 17 00:00:00 2001
 From: Alessandro Zummo <a.zummo@towertech.it>
 Date: Thu, 23 May 2013 20:57:04 +0200
-Subject: [PATCH 4/6] beaglebone: TT3201 MCP2515 fixes
+Subject: [PATCH 4/7] beaglebone: TT3201 MCP2515 fixes
 
 Signed-off-by: Alessandro Zummo <a.zummo@towertech.it>
 ---
@@ -162,5 +162,5 @@ index 42b6d69..3555ef44 100644
  	}
  error_probe:
 -- 
-1.8.2.1
+1.9.0
 

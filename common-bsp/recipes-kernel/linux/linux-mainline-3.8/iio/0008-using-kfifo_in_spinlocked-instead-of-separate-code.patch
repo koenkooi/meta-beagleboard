@@ -1,4 +1,4 @@
-From 912d701a9838bdc10d42f7224f840868c6610450 Mon Sep 17 00:00:00 2001
+From 20d27cef2951f6d7acfb916a5b10e692f1cc94f0 Mon Sep 17 00:00:00 2001
 From: Ge Gao <ggao@invensense.com>
 Date: Mon, 4 Mar 2013 23:27:00 +0000
 Subject: [PATCH 08/11] using kfifo_in_spinlocked instead of separate code.
@@ -26,5 +26,5 @@ index 331781f..7da0832 100644
  	return IRQ_WAKE_THREAD;
  }
 -- 
-1.8.2.1
+1.9.0
 

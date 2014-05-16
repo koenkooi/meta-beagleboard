@@ -1,4 +1,4 @@
-From ef938d0156e1914d6280658284651f68ef48a1a9 Mon Sep 17 00:00:00 2001
+From 0cf7a3407590d4d1e4ec6d6bb23961dfcaee6343 Mon Sep 17 00:00:00 2001
 From: Axel Lin <axel.lin@ingics.com>
 Date: Thu, 20 Jun 2013 01:27:27 +0800
 Subject: [PATCH 11/11] pwm: pca9685: Fix wrong argument to set MODE1_SLEEP bit
@@ -38,5 +38,5 @@ index 2cef2bd..77b4e05 100644
  	return pwmchip_remove(&pca->chip);
  }
 -- 
-1.8.2.1
+1.9.0
 

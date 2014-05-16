@@ -1,4 +1,4 @@
-From e9d8990204f4a51bae73e9f5cc2f154f194d1bf3 Mon Sep 17 00:00:00 2001
+From cb5102a1ad3c4f2fd26eb01fdfbfe7e125903813 Mon Sep 17 00:00:00 2001
 From: "Hebbar, Gururaja" <gururaja.hebbar@ti.com>
 Date: Tue, 31 Jul 2012 21:25:38 +0530
 Subject: [PATCH 057/184] ASoC: Davinci: machine: Add device tree binding
@@ -313,5 +313,5 @@ index 591f547..a39dbee 100644
  }
  
 -- 
-1.8.2.1
+1.9.0
 

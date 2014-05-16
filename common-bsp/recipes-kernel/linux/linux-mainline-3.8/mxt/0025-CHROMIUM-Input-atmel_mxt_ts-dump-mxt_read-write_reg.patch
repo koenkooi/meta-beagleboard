@@ -1,4 +1,4 @@
-From e3ec445543f4fc6a603d3b7990763ef0641077ee Mon Sep 17 00:00:00 2001
+From 268229b4cb8093d701181f18bc9dcc8b8cb15e61 Mon Sep 17 00:00:00 2001
 From: Daniel Kurtz <djkurtz@chromium.org>
 Date: Wed, 15 Feb 2012 16:32:02 +0800
 Subject: [PATCH 25/57] CHROMIUM: Input: atmel_mxt_ts - dump mxt_read/write_reg
@@ -91,5 +91,5 @@ index 2f22ae1..50fe84a 100644
  	kfree(buf);
  	return ret;
 -- 
-1.8.2.1
+1.9.0
 

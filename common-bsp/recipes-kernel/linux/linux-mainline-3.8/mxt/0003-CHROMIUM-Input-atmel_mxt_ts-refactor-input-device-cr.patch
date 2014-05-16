@@ -1,4 +1,4 @@
-From 9ea2bbc3afcaff85d47dbdebdc87b025fc69cee8 Mon Sep 17 00:00:00 2001
+From 76e686432c9f1cd041fb1cc1e3c48848a54533fb Mon Sep 17 00:00:00 2001
 From: Daniel Kurtz <djkurtz@chromium.org>
 Date: Fri, 27 Apr 2012 22:15:16 +0800
 Subject: [PATCH 03/57] CHROMIUM: Input: atmel_mxt_ts - refactor input device
@@ -157,5 +157,5 @@ index 84f0408..9afc26e 100644
  				     pdata->irqflags | IRQF_ONESHOT,
  				     client->name, data);
 -- 
-1.8.2.1
+1.9.0
 

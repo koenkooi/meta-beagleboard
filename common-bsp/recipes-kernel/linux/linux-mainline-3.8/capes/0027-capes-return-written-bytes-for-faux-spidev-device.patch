@@ -1,7 +1,7 @@
-From 7328df4a7ba89cf383447565db50dfa5cba6e0c5 Mon Sep 17 00:00:00 2001
+From 4ff6d4445a8694aadab69e2f383eb96827f5b492 Mon Sep 17 00:00:00 2001
 From: Matt Ranostay <mranostay@gmail.com>
 Date: Sun, 22 Dec 2013 16:15:51 -0800
-Subject: [PATCH 28/33] capes: return written bytes for faux spidev device
+Subject: [PATCH 27/40] capes: return written bytes for faux spidev device
 
 To quiet OLA not getting confirmation of written bytes.
 

@@ -1,4 +1,4 @@
-From 9a9382062788784ea87c7f06412674876bf79dd9 Mon Sep 17 00:00:00 2001
+From 4e5f103296c801452774086b14b5092d11c0be6c Mon Sep 17 00:00:00 2001
 From: Cody Lacey <clacey@ti.com>
 Date: Fri, 18 Oct 2013 12:42:00 -0500
 Subject: [PATCH 3/3] ASoc: McASP: Lift Reset on CLK Dividers when RX/TX
@@ -65,5 +65,5 @@ index 83232c6..98d559d 100644
  	mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLX_REG, TXHCLKRST);
  	mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLX_REG, TXCLKRST);
 -- 
-1.8.4.2
+1.9.0
 

@@ -1,4 +1,4 @@
-From b0134867f523f4110097b2062a6932a4fc3cca4d Mon Sep 17 00:00:00 2001
+From 3a8f87c8c8276709af8fd8a008b666d4ce8837fa Mon Sep 17 00:00:00 2001
 From: Sebastian Hesselbarth <sebastian.hesselbarth@gmail.com>
 Date: Sat, 18 May 2013 17:12:19 +0000
 Subject: [PATCH 16/27] DRM: tda998x: add missing include
@@ -42,5 +42,5 @@ index 0000000..41f799f
 +
 +#endif
 -- 
-1.8.2.1
+1.9.0
 

@@ -1,4 +1,4 @@
-From 9f5d13592de1cec1b82b247f5e56a1dfbd13b09f Mon Sep 17 00:00:00 2001
+From 66ebacd24136f5af5e599d05683933023b3bb8a5 Mon Sep 17 00:00:00 2001
 From: Koen Kooi <koen@dominion.thruhere.net>
 Date: Thu, 12 Sep 2013 09:56:37 +0200
 Subject: [PATCH 3/9] beaglebone: switch uSD to 4-bit mode
@@ -9,10 +9,10 @@ Signed-off-by: Koen Kooi <koen@dominion.thruhere.net>
  1 file changed, 1 insertion(+)
 
 diff --git a/arch/arm/boot/dts/am335x-bone-common.dtsi b/arch/arm/boot/dts/am335x-bone-common.dtsi
-index 8cac9c0..e8b43e7 100644
+index b183c7d..7ed546f 100644
 --- a/arch/arm/boot/dts/am335x-bone-common.dtsi
 +++ b/arch/arm/boot/dts/am335x-bone-common.dtsi
-@@ -544,6 +544,7 @@
+@@ -553,6 +553,7 @@
  &mmc1 {
  	pinctrl-names = "default";
  	pinctrl-0 = <&mmc1_pins>;

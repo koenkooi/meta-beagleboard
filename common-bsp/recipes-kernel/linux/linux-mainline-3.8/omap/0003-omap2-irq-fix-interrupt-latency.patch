@@ -1,4 +1,4 @@
-From f1527fb177cdec377cedeec2a6cb2b01973e9daf Mon Sep 17 00:00:00 2001
+From 1946e293a22c119d4b2520ab10a7076c4b51ed46 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?H=C3=A5kan=20Engblom?= <hkengblom@gmail.com>
 Date: Wed, 24 Apr 2013 10:53:46 +0200
 Subject: [PATCH 3/3] omap2 irq: fix interrupt latency
@@ -22,5 +22,5 @@ index 3926f37..57d1b7d 100644
  			goto out;
  		irqnr = readl_relaxed(base_addr + 0xf8);
 -- 
-1.8.2.1
+1.9.0
 

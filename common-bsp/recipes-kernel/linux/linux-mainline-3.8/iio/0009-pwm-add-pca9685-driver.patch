@@ -1,4 +1,4 @@
-From c9fdbcb666194a7562347345eece9655533c4296 Mon Sep 17 00:00:00 2001
+From 771dce98b784cf56ef4d0cd3197c5bb8b3f836ed Mon Sep 17 00:00:00 2001
 From: Steffen Trumtrar <s.trumtrar@pengutronix.de>
 Date: Thu, 30 May 2013 09:50:12 +0200
 Subject: [PATCH 09/11] pwm: add pca9685 driver
@@ -391,5 +391,5 @@ index 0000000..9d6903b
 +MODULE_DESCRIPTION("PWM driver for PCA9685");
 +MODULE_LICENSE("GPL");
 -- 
-1.8.2.1
+1.9.0
 

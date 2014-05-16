@@ -1,4 +1,4 @@
-From 462ccafc54902a3c5a956297e0ce25c82bcf9b80 Mon Sep 17 00:00:00 2001
+From 9ed3dde3322db4e9821ddf7dc860c7d54fa6de5d Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Fri, 14 Sep 2012 17:51:11 +0300
 Subject: [PATCH 1/4] i2c: pinctrl-ify i2c-omap.c
@@ -44,5 +44,5 @@ index 4cc2f05..0d55dbd 100644
  	pm_runtime_put_autosuspend(dev->dev);
  
 -- 
-1.8.2.1
+1.9.0
 

@@ -1,4 +1,4 @@
-From 82a9e078a837027ce6724b40480d76dffda82480 Mon Sep 17 00:00:00 2001
+From 0d3e4dc703ee18ae9a0610a3ad3336cd0efd2c55 Mon Sep 17 00:00:00 2001
 From: Benson Leung <bleung@chromium.org>
 Date: Tue, 7 Aug 2012 16:20:18 -0700
 Subject: [PATCH 43/57] CHROMIUM: Input: atmel_mxt_ts - Add defines for T9
@@ -81,5 +81,5 @@ index bdbcc60..f13ef67 100644
  
  		/* Enable wake from IRQ */
 -- 
-1.8.2.1
+1.9.0
 

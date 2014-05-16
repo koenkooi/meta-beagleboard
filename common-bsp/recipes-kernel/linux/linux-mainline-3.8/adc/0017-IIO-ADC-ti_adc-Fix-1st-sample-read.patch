@@ -1,7 +1,7 @@
-From 804d873767a531a1416b8b49d2b6bad75d07ef06 Mon Sep 17 00:00:00 2001
+From a67891101722867b29a4db08345cdf45b9035394 Mon Sep 17 00:00:00 2001
 From: "Patil, Rachna" <rachna@ti.com>
 Date: Thu, 27 Jun 2013 23:49:41 +0100
-Subject: [PATCH 17/20] IIO: ADC: ti_adc: Fix 1st sample read
+Subject: [PATCH 17/19] IIO: ADC: ti_adc: Fix 1st sample read
 
 Previously we tried to read data form ADC even before ADC sequencer
 finished sampling. This led to wrong samples.
@@ -114,5 +114,5 @@ index 9598360..17c0cba 100644
  
  struct mfd_tscadc_board {
 -- 
-1.8.2.1
+1.9.0
 

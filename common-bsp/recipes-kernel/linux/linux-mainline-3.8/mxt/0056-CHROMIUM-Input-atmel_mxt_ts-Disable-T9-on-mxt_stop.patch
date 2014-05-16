@@ -1,4 +1,4 @@
-From 586dfdc8f5fb996ef4f310600ae61cc81fc2590e Mon Sep 17 00:00:00 2001
+From 7b4e0017a08acf0daea7d59c1c1ce1950143b6ac Mon Sep 17 00:00:00 2001
 From: Daniel Kurtz <djkurtz@chromium.org>
 Date: Thu, 31 Jan 2013 17:43:07 +0800
 Subject: [PATCH 56/57] CHROMIUM: Input: atmel_mxt_ts - Disable T9 on mxt_stop
@@ -49,5 +49,5 @@ index cd900ee..0865842 100644
  
  static int mxt_input_open(struct input_dev *dev)
 -- 
-1.8.2.1
+1.9.0
 

@@ -1,4 +1,4 @@
-From a88b26a9bb8d77162943e2f23380903b3940a26e Mon Sep 17 00:00:00 2001
+From e0b5270b7917f70b09221a44063c9f67723edd01 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 27 Feb 2013 18:35:09 +0200
 Subject: [PATCH 104/184] bone-capemgr: Fix crash when trying to remove
@@ -36,5 +36,5 @@ index 2656e3a..9f8da94 100644
  		mutex_unlock(&info->slots_list_mutex);
  
 -- 
-1.8.2.1
+1.9.0
 
