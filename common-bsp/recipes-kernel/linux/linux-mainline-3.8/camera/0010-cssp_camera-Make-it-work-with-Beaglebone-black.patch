@@ -1,4 +1,4 @@
-From a3947a919ac624ff46c11f1cea2e4a1a1c04cbca Mon Sep 17 00:00:00 2001
+From f2058a9203cb8aea5b546d51bdadef80c8c5587c Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Fri, 10 May 2013 14:07:49 +0300
 Subject: [PATCH 10/10] cssp_camera: Make it work with Beaglebone black
@@ -11,7 +11,7 @@ I love it when a plan comes together...
  2 files changed, 28 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/media/platform/soc_camera/cssp_camera.c b/drivers/media/platform/soc_camera/cssp_camera.c
-index 7c8d40e..119c432 100644
+index 12d78bd..9cee142 100644
 --- a/drivers/media/platform/soc_camera/cssp_camera.c
 +++ b/drivers/media/platform/soc_camera/cssp_camera.c
 @@ -45,6 +45,8 @@
@@ -112,5 +112,5 @@ index 97bdcfd..e546f08 100644
  
  		};
 -- 
-1.8.2.1
+1.9.0
 

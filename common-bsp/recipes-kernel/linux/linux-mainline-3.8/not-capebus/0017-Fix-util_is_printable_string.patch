@@ -1,4 +1,4 @@
-From 77315fc28409c402243c1b5b2a456bffc506aa9c Mon Sep 17 00:00:00 2001
+From 6a814ea8654fe7b4680ba986202c2bc991e2b403 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Thu, 6 Dec 2012 13:22:49 +0200
 Subject: [PATCH 017/184] Fix util_is_printable_string
@@ -50,5 +50,5 @@ index 2422c34..45f186b 100644
  	return 1;
  }
 -- 
-1.8.2.1
+1.9.0
 

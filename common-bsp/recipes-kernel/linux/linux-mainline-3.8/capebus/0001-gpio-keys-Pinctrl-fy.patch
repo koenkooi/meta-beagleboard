@@ -1,4 +1,4 @@
-From 8275063a075b18f9c797dea3223a8b163d45120f Mon Sep 17 00:00:00 2001
+From 5346e004a675683176f96fbbb33f2ae5c27325a2 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 17 Oct 2012 20:17:36 +0300
 Subject: [PATCH 1/7] gpio-keys: Pinctrl-fy
@@ -47,5 +47,5 @@ index b29ca65..97d7e05 100644
  
  	return 0;
 -- 
-1.8.2.1
+1.9.0
 

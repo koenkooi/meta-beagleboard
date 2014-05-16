@@ -1,4 +1,4 @@
-From 92f3c3d82294e32f83a2b8beb017bc3b06d809e4 Mon Sep 17 00:00:00 2001
+From b3dfcec33b958575eeabb50919044e538d0b36c1 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 30 Jan 2013 20:05:05 +0200
 Subject: [PATCH 096/184] tilcdc-tfp410: Rework power down GPIO logic
@@ -76,5 +76,5 @@ index c9cd8f1..7065dfa 100644
  			dev_info(&pdev->dev, "Power GPIO active low, initial state set to low\n");
  		} else {
 -- 
-1.8.2.1
+1.9.0
 

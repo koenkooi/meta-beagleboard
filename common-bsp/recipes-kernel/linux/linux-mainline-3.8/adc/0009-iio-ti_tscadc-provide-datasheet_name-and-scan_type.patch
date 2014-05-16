@@ -1,7 +1,7 @@
-From 4055be1e87d9a36724c77cb0c44de0fce2b9c635 Mon Sep 17 00:00:00 2001
+From 76e77868d96772df2273d54fae336d5ac898bafa Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 12 Jun 2013 18:58:12 +0200
-Subject: [PATCH 09/20] iio: ti_tscadc: provide datasheet_name and scan_type
+Subject: [PATCH 09/19] iio: ti_tscadc: provide datasheet_name and scan_type
 
 This patch provides the members "datasheet_name" and scan_type. This is
 the remaining part of the earlier patch where I (bigeasy) removed iio_map
@@ -85,5 +85,5 @@ index 4f4c82e..25feb62 100644
  
  static void tiadc_channels_remove(struct iio_dev *indio_dev)
 -- 
-1.8.2.1
+1.9.0
 

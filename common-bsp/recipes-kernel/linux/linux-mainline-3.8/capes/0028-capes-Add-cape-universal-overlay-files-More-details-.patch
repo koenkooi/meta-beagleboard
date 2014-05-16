@@ -1,7 +1,7 @@
-From 310636307e1ce988ba711d74d64e634578f65aa4 Mon Sep 17 00:00:00 2001
+From de0ddc6421914ea13ae20b97de328f542da507b9 Mon Sep 17 00:00:00 2001
 From: Charles Steinkuehler <charles@steinkuehler.net>
 Date: Sun, 23 Mar 2014 20:13:44 +0100
-Subject: [PATCH 27/33] capes: Add cape-universal overlay files More details
+Subject: [PATCH 28/40] capes: Add cape-universal overlay files More details
  and full source can be found at:
  https://github.com/cdsteinkuehler/beaglebone-universal-io
 

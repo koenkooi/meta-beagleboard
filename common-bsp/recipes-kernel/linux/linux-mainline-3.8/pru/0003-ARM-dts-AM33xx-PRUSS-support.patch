@@ -1,4 +1,4 @@
-From f71bab81bbc1b19cdba27bd87fa2fd77539e8095 Mon Sep 17 00:00:00 2001
+From 6ea19ab6df59848f1e5f17e4f413eb47891f3c4b Mon Sep 17 00:00:00 2001
 From: Matt Ranostay <mranostay@gmail.com>
 Date: Thu, 17 Jan 2013 16:02:49 -0800
 Subject: [PATCH 03/19] ARM: dts: AM33xx PRUSS support
@@ -12,10 +12,10 @@ Signed-off-by: Matt Ranostay <mranostay@gmail.com>
  1 file changed, 11 insertions(+)
 
 diff --git a/arch/arm/boot/dts/am33xx.dtsi b/arch/arm/boot/dts/am33xx.dtsi
-index 9bf0d2c..5d4f9133 100644
+index 0ffaf9d..1684389 100644
 --- a/arch/arm/boot/dts/am33xx.dtsi
 +++ b/arch/arm/boot/dts/am33xx.dtsi
-@@ -347,6 +347,17 @@
+@@ -352,6 +352,17 @@
  			ti,timer-pwm;
  		};
  
@@ -34,5 +34,5 @@ index 9bf0d2c..5d4f9133 100644
  			compatible = "ti,da830-rtc";
  			reg = <0x44e3e000 0x1000>;
 -- 
-1.8.2.1
+1.9.0
 

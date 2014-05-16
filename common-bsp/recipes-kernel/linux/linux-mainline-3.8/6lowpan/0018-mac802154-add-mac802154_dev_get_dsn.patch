@@ -1,4 +1,4 @@
-From f5faad8f60f39772b42c7cc56b25e21b7b6338e3 Mon Sep 17 00:00:00 2001
+From a50b50dcd44b193d6f0d3aa4964f01d786f8a085 Mon Sep 17 00:00:00 2001
 From: Tony Cheneau <tony.cheneau@amnesiak.org>
 Date: Mon, 25 Mar 2013 23:59:29 -0400
 Subject: [PATCH 18/23] mac802154: add mac802154_dev_get_dsn()
@@ -57,5 +57,5 @@ index f47781a..f03e55f 100644
  {
  	struct phy_chan_notify_work *nw = container_of(work,
 -- 
-1.8.2.1
+1.9.0
 

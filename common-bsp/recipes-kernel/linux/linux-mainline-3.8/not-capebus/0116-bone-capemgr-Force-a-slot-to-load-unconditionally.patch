@@ -1,4 +1,4 @@
-From 762eb58bbb7e1a2dd5d39bfa659964415c86b280 Mon Sep 17 00:00:00 2001
+From 012a38b5d83bc5b5a50602ac99af07cd9d037457 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Fri, 8 Mar 2013 14:31:40 +0200
 Subject: [PATCH 116/184] bone-capemgr: Force a slot to load unconditionally
@@ -27,5 +27,5 @@ index 9f8da94..255c491 100644
  	if (extra_override == NULL)
  		return 0;
 -- 
-1.8.2.1
+1.9.0
 

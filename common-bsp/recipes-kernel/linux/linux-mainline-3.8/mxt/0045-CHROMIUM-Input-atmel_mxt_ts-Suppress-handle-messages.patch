@@ -1,4 +1,4 @@
-From 4cd0081b9e4bc8db67d6daf0168008cbeea817a5 Mon Sep 17 00:00:00 2001
+From 08544f840e0dbf607349e8267deb37d2a99109ba Mon Sep 17 00:00:00 2001
 From: Benson Leung <bleung@chromium.org>
 Date: Mon, 13 Aug 2012 18:10:29 -0700
 Subject: [PATCH 45/57] CHROMIUM: Input: atmel_mxt_ts - Suppress handle
@@ -112,5 +112,5 @@ index 33b564b..af92d8d 100644
  		dev_err(dev, "Handling message fails upon resume, %d\n", ret);
  
 -- 
-1.8.2.1
+1.9.0
 

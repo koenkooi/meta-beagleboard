@@ -1,7 +1,7 @@
-From 580056dd7eda5de098066199b9697fef44270e7d Mon Sep 17 00:00:00 2001
+From 14476b9420a810c001d29fa112b05f2c6342f88f Mon Sep 17 00:00:00 2001
 From: Michael Musset <mickamusset@gmail.com>
 Date: Tue, 28 Jan 2014 10:51:50 -0600
-Subject: [PATCH 8/8] omap RS485 support by Michael Musset
+Subject: [PATCH 8/9] omap RS485 support by Michael Musset
 
 Signed-off-by: Michael Musset <mickamusset@gmail.com>
 ---
@@ -218,5 +218,5 @@ index 5e0d0ed..9d3fcda 100644
  };
  
 -- 
-1.8.5.3
+1.9.0
 

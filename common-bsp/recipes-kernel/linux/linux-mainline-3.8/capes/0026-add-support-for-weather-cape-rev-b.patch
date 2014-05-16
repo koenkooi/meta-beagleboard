@@ -1,7 +1,7 @@
-From ddf08f5239cc3b15d1675959cedaa1c31dae127f Mon Sep 17 00:00:00 2001
+From d117ad3f452f179bf916209211110b648b39ec25 Mon Sep 17 00:00:00 2001
 From: Hieu Duong <me@hieuduong.com>
 Date: Thu, 20 Mar 2014 16:31:36 -0500
-Subject: [PATCH 25/33] add support for weather cape rev b
+Subject: [PATCH 26/40] add support for weather cape rev b
 
 Signed-off-by: Hieu Duong <me@hieuduong.com>
 ---
@@ -12,7 +12,7 @@ Signed-off-by: Hieu Duong <me@hieuduong.com>
  create mode 100644 firmware/capes/cape-bone-weather-00B0.dts
 
 diff --git a/arch/arm/boot/dts/am335x-bone-common.dtsi b/arch/arm/boot/dts/am335x-bone-common.dtsi
-index 28c056f..8cac9c0 100644
+index 58b388d..a349b27 100644
 --- a/arch/arm/boot/dts/am335x-bone-common.dtsi
 +++ b/arch/arm/boot/dts/am335x-bone-common.dtsi
 @@ -319,6 +319,10 @@

@@ -1,4 +1,4 @@
-From c1e5d09bc2b69c36508f1cf104e0d7daa62977be Mon Sep 17 00:00:00 2001
+From 08c747e5059daa274a0437621a82829c9f36074f Mon Sep 17 00:00:00 2001
 From: Cody Lacey <clacey@ti.com>
 Date: Fri, 9 Aug 2013 12:19:20 -0500
 Subject: [PATCH 22/27] drm/tilcdc fixing i2c/slave initialization race
@@ -52,7 +52,7 @@ index 31e039e..09ae498 100644
  }
  
 diff --git a/drivers/gpu/drm/tilcdc/tilcdc_drv.h b/drivers/gpu/drm/tilcdc/tilcdc_drv.h
-index 40ff5d4..254bba60 100644
+index d661dbb..58d86c7 100644
 --- a/drivers/gpu/drm/tilcdc/tilcdc_drv.h
 +++ b/drivers/gpu/drm/tilcdc/tilcdc_drv.h
 @@ -116,6 +116,7 @@ void tilcdc_module_init(struct tilcdc_module *mod, const char *name,
@@ -187,5 +187,5 @@ index 440de4e..667540c 100644
  
  static int slave_remove(struct platform_device *pdev)
 -- 
-1.8.2.1
+1.9.0
 

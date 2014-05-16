@@ -1,7 +1,7 @@
-From 01810c998042b42333154bb3510879f7c4b20166 Mon Sep 17 00:00:00 2001
+From e942151f3b4c6efb9b24862e61df524d0953d25c Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Jan=20L=C3=BCbbe?= <jlu@pengutronix.de>
 Date: Mon, 17 Jun 2013 20:30:30 +0000
-Subject: [PATCH 3/3] pps-gpio: add device-tree binding and support
+Subject: [PATCH 3/4] pps-gpio: add device-tree binding and support
 
 Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
 Acked-by: Rodolfo Giometti <giometti@enneenne.com>
@@ -126,5 +126,5 @@ index 7e0e93b..9b405b3 100644
  };
  
 -- 
-1.8.2.1
+1.9.0
 

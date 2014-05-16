@@ -1,4 +1,4 @@
-From 2666f79dd5a957a05ef5fc424770839d023ec5ec Mon Sep 17 00:00:00 2001
+From 8ef0ad12b71199905d26f9332fdfa258772b13f1 Mon Sep 17 00:00:00 2001
 From: Bas van der Doorn <bas@doornvd.com>
 Date: Tue, 11 Dec 2012 06:52:22 -0600
 Subject: [PATCH 07/10] Beagle: expansion: add beaglefpga
@@ -111,5 +111,5 @@ index f126531..3b939eb 100644
  	{
  	#if defined(CONFIG_TOUCHSCREEN_TSC2007) || defined(CONFIG_TOUCHSCREEN_TSC2007_MODULE)
 -- 
-1.8.2.1
+1.9.0
 

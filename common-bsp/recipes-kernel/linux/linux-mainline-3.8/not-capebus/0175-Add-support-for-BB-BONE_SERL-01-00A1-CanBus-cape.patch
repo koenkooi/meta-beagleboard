@@ -1,4 +1,4 @@
-From 4b3b4f48ccb45b9a8f1c80ce5949664c2c7ba614 Mon Sep 17 00:00:00 2001
+From 9059c8e97dfba7eb7a65ed445bca209f24db7859 Mon Sep 17 00:00:00 2001
 From: Martin Gysel <me@bearsh.org>
 Date: Wed, 15 May 2013 16:48:34 +0200
 Subject: [PATCH 175/184] Add support for BB-BONE_SERL-01-00A1 CanBus cape
@@ -66,5 +66,5 @@ index 0000000..b0459c8
 +	};
 +};
 -- 
-1.8.2.1
+1.9.0
 

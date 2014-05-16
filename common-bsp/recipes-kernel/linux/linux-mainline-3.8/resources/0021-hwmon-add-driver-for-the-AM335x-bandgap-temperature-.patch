@@ -1,7 +1,7 @@
-From 081804a132de6802f64daf8af6704b21abeb86eb Mon Sep 17 00:00:00 2001
+From 3352004a66a3c993314c3cbe77b2e687191f51e4 Mon Sep 17 00:00:00 2001
 From: Jan Luebbe <jlu@pengutronix.de>
 Date: Sun, 21 Jul 2013 00:27:27 +0200
-Subject: [PATCH 21/23] hwmon: add driver for the AM335x bandgap temperature
+Subject: [PATCH 21/24] hwmon: add driver for the AM335x bandgap temperature
  sensor
 
 Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
@@ -34,10 +34,10 @@ index 0000000..731533a
 +		reg = <0x44e10448 0x8>;
 +	};
 diff --git a/arch/arm/boot/dts/am33xx.dtsi b/arch/arm/boot/dts/am33xx.dtsi
-index eb0d2d4..aedffdb 100644
+index 70c6355..5791c69 100644
 --- a/arch/arm/boot/dts/am33xx.dtsi
 +++ b/arch/arm/boot/dts/am33xx.dtsi
-@@ -649,5 +649,9 @@
+@@ -654,5 +654,9 @@
  			dma-names = "tx", "rx";
  		};
  
@@ -248,5 +248,5 @@ index 0000000..397907d
 +MODULE_DESCRIPTION("AM335x temperature sensor driver");
 +MODULE_LICENSE("GPL");
 -- 
-1.8.2.1
+1.9.0
 

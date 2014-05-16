@@ -1,7 +1,7 @@
-From e99c7720cf059daaf138168dfbe00dd1b1d33041 Mon Sep 17 00:00:00 2001
+From 0a97867a2c989388f7e9d71c97bd37f4891cf0a6 Mon Sep 17 00:00:00 2001
 From: Hieu Duong <me@hieuduong.com>
 Date: Thu, 3 Apr 2014 14:49:33 -0500
-Subject: [PATCH 30/33] remove 1-wire gpio in weather cape rev B
+Subject: [PATCH 31/40] remove 1-wire gpio in weather cape rev B
 
 Signed-off-by: Hieu Duong <me@hieuduong.com>
 ---

@@ -1,4 +1,4 @@
-From a28e8f579dc8e03fbcf709c6e200a36e6f0d6a5b Mon Sep 17 00:00:00 2001
+From d40ad7c3e4e89e2dbd8b121b31ae5d1f10b3b002 Mon Sep 17 00:00:00 2001
 From: Matt Ranostay <mranostay@gmail.com>
 Date: Thu, 17 Jan 2013 16:02:47 -0800
 Subject: [PATCH 01/19] uio: uio_pruss: port to AM33xx
@@ -189,5 +189,5 @@ index 6e2ab00..2bb1d7a 100644
  };
  
 -- 
-1.8.2.1
+1.9.0
 

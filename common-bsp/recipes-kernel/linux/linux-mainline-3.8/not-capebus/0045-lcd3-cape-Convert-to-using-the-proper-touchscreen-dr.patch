@@ -1,4 +1,4 @@
-From 78b1c4d9c8bb7c9690ee6f43c16e7193b9ea2fff Mon Sep 17 00:00:00 2001
+From cb9959c858777f3f84c707bda1a6fdefc17d3fdf Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 9 Jan 2013 14:42:11 +0200
 Subject: [PATCH 045/184] lcd3-cape: Convert to using the proper touchscreen
@@ -65,5 +65,5 @@ index 83a6d88..b0784b2 100644
  			panel {
  				compatible = "lcdc,panel";
 -- 
-1.8.2.1
+1.9.0
 

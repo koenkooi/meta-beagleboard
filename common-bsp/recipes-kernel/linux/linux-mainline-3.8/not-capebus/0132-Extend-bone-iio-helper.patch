@@ -1,4 +1,4 @@
-From 0cf1a03097e88f0e8d19917ee4acaa54baa0a85e Mon Sep 17 00:00:00 2001
+From 5dab24f95110c28693019df02382d6fce95d63e0 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Thu, 21 Mar 2013 14:32:03 +0200
 Subject: [PATCH 132/184] Extend bone-iio helper
@@ -232,5 +232,5 @@ index d2c76e1..a919857 100644
  
  	return 0;
 -- 
-1.8.2.1
+1.9.0
 

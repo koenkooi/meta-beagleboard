@@ -1,4 +1,4 @@
-From f67491687dfd67cf834a82b16fadff335e6b93ca Mon Sep 17 00:00:00 2001
+From 0bdc72fac3196375120068ccc4ea0b471f3f33fd Mon Sep 17 00:00:00 2001
 From: "Michael S. Tsirkin" <mst@redhat.com>
 Date: Mon, 18 Mar 2013 13:22:18 +1030
 Subject: [PATCH 14/19] tools/virtio: fix build for 3.8
@@ -87,5 +87,5 @@ index fcc9aa2..faf3f0c 100644
  				       vq_notify, vq_callback, "test");
  	assert(info->vq);
 -- 
-1.8.2.1
+1.9.0
 

@@ -1,4 +1,4 @@
-From 0163012f58d70ed35567cc896741bfb748b819a1 Mon Sep 17 00:00:00 2001
+From 1bbc1e5480caa8658c0b4ce53a4d5d6d82a759bf Mon Sep 17 00:00:00 2001
 From: Benson Leung <bleung@chromium.org>
 Date: Thu, 23 Aug 2012 15:43:55 -0700
 Subject: [PATCH 46/57] CHROMIUM: Input: atmel_mxt_ts - save and restore
@@ -70,5 +70,5 @@ index af92d8d..ae8a6f3 100644
  
  	/* Restore the T7 Power config to before-suspend value */
 -- 
-1.8.2.1
+1.9.0
 

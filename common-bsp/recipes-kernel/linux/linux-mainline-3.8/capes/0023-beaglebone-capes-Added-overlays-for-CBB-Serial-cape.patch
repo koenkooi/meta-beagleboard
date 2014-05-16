@@ -1,7 +1,7 @@
-From a296e1991fe13bb045924d7830d8e491b5fe311b Mon Sep 17 00:00:00 2001
+From 6ff4c5fa0f6b8777117f59e0ef146b8b9519257e Mon Sep 17 00:00:00 2001
 From: Alexander Hiam <hiamalexander@gmail.com>
 Date: Thu, 30 Jan 2014 11:44:05 -0500
-Subject: [PATCH 23/27] beaglebone capes: Added overlays for CBB-Serial cape
+Subject: [PATCH 23/40] beaglebone capes: Added overlays for CBB-Serial cape
 
 Added main overaly for CBB-Serial BeagleBone cape, as well as separate
 overlays to mux the AM335x UART2 and UART4 RTS and CTS pins to the 3.8
@@ -274,5 +274,5 @@ index 0000000..0309bd2
 +  };
 +};
 -- 
-1.8.5.3
+1.9.0
 

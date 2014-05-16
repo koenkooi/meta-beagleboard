@@ -1,4 +1,4 @@
-From 3e33ad22e85c8c8bb4cf398297e92ed6dd48e925 Mon Sep 17 00:00:00 2001
+From 610a08eb86cc83052a3a72b6c993dfcea96b1b6d Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Tue, 26 Feb 2013 20:44:25 +0200
 Subject: [PATCH 121/184] BBB-tester: Introduce cape describing the contents of
@@ -10,8 +10,8 @@ bus, so you have to load the fragment manually.
 Signed-off-by: Pantelis Antoniou <panto@antoniou-consulting.com>
 ---
  firmware/Makefile                        |   3 +
- firmware/capes/cape-bone-tester-00A0.dts | 418 +++++++++++++++++++++++++++++++
- 2 files changed, 421 insertions(+)
+ firmware/capes/cape-bone-tester-00A0.dts | 417 +++++++++++++++++++++++++++++++
+ 2 files changed, 420 insertions(+)
  create mode 100644 firmware/capes/cape-bone-tester-00A0.dts
 
 diff --git a/firmware/Makefile b/firmware/Makefile
@@ -30,10 +30,10 @@ index 0fd76b3..4f51526 100644
  # Directories which we _might_ need to create, so we have a rule for them.
 diff --git a/firmware/capes/cape-bone-tester-00A0.dts b/firmware/capes/cape-bone-tester-00A0.dts
 new file mode 100644
-index 0000000..72fba6e
+index 0000000..5881550
 --- /dev/null
 +++ b/firmware/capes/cape-bone-tester-00A0.dts
-@@ -0,0 +1,418 @@
+@@ -0,0 +1,417 @@
 +/*
 + * Copyright (C) 2013 CircuitCo
 + *
@@ -451,7 +451,6 @@ index 0000000..72fba6e
 +
 +	};
 +};
-+
 -- 
-1.8.2.1
+1.9.0
 

@@ -1,4 +1,4 @@
-From 9bf525c1b14a08a9aa731cd28ddad5d68a2e32a1 Mon Sep 17 00:00:00 2001
+From 9118a200f300f5d6abc44282bfe9c943f00a77b6 Mon Sep 17 00:00:00 2001
 From: Micka <mickamusset@gmail.com>
 Date: Wed, 22 Jan 2014 15:19:22 -0600
 Subject: [PATCH 7/9] ti_am335x_tsc: touchscreen jitter fix

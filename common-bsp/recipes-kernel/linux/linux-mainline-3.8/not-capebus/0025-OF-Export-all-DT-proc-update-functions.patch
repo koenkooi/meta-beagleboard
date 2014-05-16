@@ -1,4 +1,4 @@
-From 694ff040e231d21c251fa4eb684a717845928228 Mon Sep 17 00:00:00 2001
+From c1aaea384d8543f198cf39b1bf36ff9fcff2f241 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Thu, 3 Jan 2013 12:02:14 +0200
 Subject: [PATCH 025/184] OF: Export all DT proc update functions
@@ -209,5 +209,5 @@ index aea3694..305b087 100644
  extern int of_alias_get_id(struct device_node *np, const char *stem);
  
 -- 
-1.8.2.1
+1.9.0
 

@@ -1,4 +1,4 @@
-From 9ff4174c4f6527d9d73e86f002dce75afee78dda Mon Sep 17 00:00:00 2001
+From bf154c2354e21cd3ebe7d6de11ca5fc507850fbf Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 9 Jan 2013 20:00:04 +0200
 Subject: [PATCH 048/184] boneblack: Add default HDMI cape
@@ -67,7 +67,7 @@ index 25ea3fb..600640a 100644
  # Directories which we _might_ need to create, so we have a rule for them.
 diff --git a/firmware/capes/cape-boneblack-hdmi-00A0.dts b/firmware/capes/cape-boneblack-hdmi-00A0.dts
 new file mode 100644
-index 0000000..4fe58d5
+index 0000000..7c62092
 --- /dev/null
 +++ b/firmware/capes/cape-boneblack-hdmi-00A0.dts
 @@ -0,0 +1,89 @@
@@ -82,7 +82,7 @@ index 0000000..4fe58d5
 +/plugin/;
 +
 +/ {
-+  	compatible = "ti,beaglebone";
++	compatible = "ti,beaglebone";
 +	part-number = "BB-BONELT-HDMI";
 +	version = "00A0";
 +
@@ -161,5 +161,5 @@ index 0000000..4fe58d5
 +
 +};
 -- 
-1.8.2.1
+1.9.0
 

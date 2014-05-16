@@ -1,7 +1,7 @@
-From 301b72eefebf37bd7feaed6bf52be7a86d10dfe5 Mon Sep 17 00:00:00 2001
+From 4287973d87c99fe966126998db3ee42ed7593513 Mon Sep 17 00:00:00 2001
 From: Matt Ranostay <mranostay@gmail.com>
 Date: Sat, 21 Dec 2013 22:27:48 -0800
-Subject: [PATCH 26/33] capes: reorder from GRB to RGB for Lighting cape
+Subject: [PATCH 25/40] capes: reorder from GRB to RGB for Lighting cape
 
 Signed-off-by: Matt Ranostay <mranostay@gmail.com>
 ---

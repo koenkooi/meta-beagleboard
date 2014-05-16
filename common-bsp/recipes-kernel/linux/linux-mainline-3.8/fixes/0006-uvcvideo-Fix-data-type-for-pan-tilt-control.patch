@@ -1,4 +1,4 @@
-From 3249a265359dbdbe01209c6b5236a6cd59fd459c Mon Sep 17 00:00:00 2001
+From 3cb6f858dad44e4ff9a71b3fa58859a6e77b3d38 Mon Sep 17 00:00:00 2001
 From: Chanho Min <chanho.min@lge.com>
 Date: Fri, 27 Sep 2013 01:57:40 -0300
 Subject: [PATCH 6/9] uvcvideo: Fix data type for pan/tilt control

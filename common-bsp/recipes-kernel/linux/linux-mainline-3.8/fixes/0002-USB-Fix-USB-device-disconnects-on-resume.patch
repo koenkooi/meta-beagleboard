@@ -1,4 +1,4 @@
-From 2b705ce3d710f25560cb63581118d9463c5b55fd Mon Sep 17 00:00:00 2001
+From c16fe6b799252bb86c6ec02d4935d87d1304be9f Mon Sep 17 00:00:00 2001
 From: Sarah Sharp <sarah.a.sharp@linux.intel.com>
 Date: Tue, 3 Sep 2013 15:52:22 +0200
 Subject: [PATCH 2/9] USB: Fix USB device disconnects on resume.

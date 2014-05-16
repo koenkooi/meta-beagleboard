@@ -1,4 +1,4 @@
-From 5b2c73939ef62542bdabc65d144756817042b897 Mon Sep 17 00:00:00 2001
+From eb2f158ae2fda4c3d82fc0e81923ce7319116b34 Mon Sep 17 00:00:00 2001
 From: Rob Clark <robdclark@gmail.com>
 Date: Mon, 10 Dec 2012 10:49:46 -0600
 Subject: [PATCH 02/12] drm: small fix in drm_send_vblank_event()
@@ -25,5 +25,5 @@ index 19c01ca..9bb83a5 100644
  }
  EXPORT_SYMBOL(drm_send_vblank_event);
 -- 
-1.8.2.1
+1.9.0
 

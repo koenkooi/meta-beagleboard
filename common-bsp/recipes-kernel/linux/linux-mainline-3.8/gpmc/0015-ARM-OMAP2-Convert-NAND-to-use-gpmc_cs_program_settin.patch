@@ -1,4 +1,4 @@
-From 2fd51baf283ee531b636854bd7a8390343a745ee Mon Sep 17 00:00:00 2001
+From f989f3407df20973912a2df488fac45345e3748a Mon Sep 17 00:00:00 2001
 From: Jon Hunter <jon-hunter@ti.com>
 Date: Thu, 21 Feb 2013 15:43:08 -0600
 Subject: [PATCH 15/39] ARM: OMAP2+: Convert NAND to use
@@ -85,5 +85,5 @@ index 6027dd0..d8ad997 100644
  
  	gpmc_update_nand_reg(&gpmc_nand_data->reg, gpmc_nand_data->cs);
 -- 
-1.8.2.1
+1.9.0
 

@@ -1,4 +1,4 @@
-From 6ba4b45204c4a98e14a4374831be49522e66ab79 Mon Sep 17 00:00:00 2001
+From 33a301587a50e68f1f75fbd7b3f94a00961e9da9 Mon Sep 17 00:00:00 2001
 From: Cody Lacey <clacey@ti.com>
 Date: Fri, 18 Oct 2013 12:31:38 -0500
 Subject: [PATCH 2/3] ASoc: Davinci-EVM: Config 12MHz CLK for AIC3x Codec
@@ -45,5 +45,5 @@ index 421feb0..1d9e9ce 100644
  	snd_soc_dapm_disable_pin(dapm, "MONO_LOUT");
  	snd_soc_dapm_disable_pin(dapm, "HPLCOM");
 -- 
-1.8.4.2
+1.9.0
 

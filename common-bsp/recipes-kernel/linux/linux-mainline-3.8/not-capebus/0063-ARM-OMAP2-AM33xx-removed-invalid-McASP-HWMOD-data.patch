@@ -1,4 +1,4 @@
-From 0bc0d0b3d59c80f17b0ed4208aac0373b3f6dabe Mon Sep 17 00:00:00 2001
+From 84575cf075b4fcf625bde443d68e571411c038c5 Mon Sep 17 00:00:00 2001
 From: "Hebbar, Gururaja" <gururaja.hebbar@ti.com>
 Date: Tue, 31 Jul 2012 19:10:20 +0530
 Subject: [PATCH 063/184] ARM: OMAP2+: AM33xx: removed invalid McASP HWMOD data
@@ -77,5 +77,5 @@ index a180336..6e80edb 100644
  	&am33xx_l4_ls__mmc1,
  	&am33xx_l3_s__mmc2,
 -- 
-1.8.2.1
+1.9.0
 

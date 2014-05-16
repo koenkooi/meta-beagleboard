@@ -1,4 +1,4 @@
-From faf477424acb975bddd6d72f97e8108fe61fb760 Mon Sep 17 00:00:00 2001
+From b94c21e8436b4207f086d45ec22626deaa7334c1 Mon Sep 17 00:00:00 2001
 From: Robert Nelson <robertcnelson@gmail.com>
 Date: Thu, 24 Jan 2013 09:43:51 -0600
 Subject: [PATCH 5/5] ARM: OMAP: Beagle: use TWL4030 generic reset script
@@ -25,5 +25,5 @@ index cdc77c5..20b4e1b 100644
  
  	beagle_twldata.vpll2->constraints.name = "VDVI";
 -- 
-1.8.2.1
+1.9.0
 

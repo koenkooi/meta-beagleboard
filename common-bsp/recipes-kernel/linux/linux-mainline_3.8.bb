@@ -86,9 +86,7 @@ SRC_URI += " \
 	file://adc/0016-MFD-ti_tscadc-disable-TSC-control-register-bits-when.patch \
 	file://adc/0017-IIO-ADC-ti_adc-Fix-1st-sample-read.patch \
 	file://adc/0018-input-ti_tsc-Enable-shared-IRQ-TSC.patch \
-	file://adc/0019-iio-ti_am335x_adc-Add-continuous-sampling-and-trigge.patch \
-	file://adc/0020-iio-ti_am335x_adc-Add-IIO-map-interface.patch \
-	file://adc/0021-TI-TSC-ADC-fix-missing-measurements.patch \
+	file://adc/0019-iio-ti_am335x_adc-Add-IIO-map-interface.patch \
 	file://i2c/0001-pinctrl-pinctrl-single-must-be-initialized-early.patch \
 	file://i2c/0002-Bone-DTS-working-i2c2-i2c3-in-the-tree.patch \
 	file://i2c/0003-am33xx-Convert-I2C-from-omap-to-am33xx-names.patch \
@@ -710,18 +708,27 @@ SRC_URI += " \
 	file://capes/0020-capes-Add-midi-cape-support.patch \
 	file://capes/0021-remoteproc-PRU-lighting-remoteproc-support.patch \
 	file://capes/0022-Add-PRU-DTS-for-lighting-cape.patch \
-	file://capes/0023-apply-htu21-patch.patch \
-	file://capes/0024-beaglebone-capes-Added-overlays-for-CBB-Serial-cape.patch \
-	file://capes/0025-add-support-for-weather-cape-rev-b.patch \
-	file://capes/0026-capes-reorder-from-GRB-to-RGB-for-Lighting-cape.patch \
-	file://capes/0027-capes-Add-cape-universal-overlay-files-More-details-.patch \
-	file://capes/0028-capes-return-written-bytes-for-faux-spidev-device.patch \
+	file://capes/0023-beaglebone-capes-Added-overlays-for-CBB-Serial-cape.patch \
+	file://capes/0024-apply-htu21-patch.patch \
+	file://capes/0025-capes-reorder-from-GRB-to-RGB-for-Lighting-cape.patch \
+	file://capes/0026-add-support-for-weather-cape-rev-b.patch \
+	file://capes/0027-capes-return-written-bytes-for-faux-spidev-device.patch \
+	file://capes/0028-capes-Add-cape-universal-overlay-files-More-details-.patch \
 	file://capes/0029-Fix-aspect-ratio-issue-of-720p-in-MT9M114-camera-cap.patch \
-	file://capes/0030-remove-1-wire-gpio-in-weather-cape-rev-B.patch \
-	file://capes/0031-add-argus-ups-cape-support.patch \
+	file://capes/0030-add-argus-ups-cape-support.patch \
+	file://capes/0031-remove-1-wire-gpio-in-weather-cape-rev-B.patch \
 	file://capes/0032-cape-add-cape-bone-ibb-00A0.dts.patch \
 	file://capes/0033-adds-DTS-for-CryptoCape.patch \
+	file://capes/0034-Provides-a-sysfs-interface-to-the-eQEP-hardware-on-t.patch \
+	file://capes/0035-capes-add-bone_eqep-from-https-github.com-Teknoman11.patch \
+	file://capes/0036-Adding-Logibone-to-cape-support-list.patch \
+	file://capes/0037-beaglebone-capes-Added-CBB-Relay-cape-dt-overlay.patch \
+	file://capes/0038-Firmware-Update-Replicape-device-tree-overlay-files-.patch \
+	file://capes/0039-cape-add-BB-BONE-AUDI-02-00A0-from-http-elinux.org-C.patch \
+	file://capes/0040-cape-universaln-remove-P9_31.patch \
 	file://proto/0001-add-new-default-pinmux-based-on-Proto-Cape.patch \
+	file://logibone/0001-Instering-Logibone-driver-into-kernel.patch \
+	file://logibone/0002-Adding-DTS-support-for-Logibone.patch \
 	file://fixes/0001-sync-don-t-block-the-flusher-thread-waiting-on-IO.patch \
 	file://fixes/0002-USB-Fix-USB-device-disconnects-on-resume.patch \
 	file://fixes/0003-beaglebone-switch-uSD-to-4-bit-mode.patch \
@@ -729,9 +736,10 @@ SRC_URI += " \
 	file://fixes/0005-omap-serial-allow-custom-buad-rate-settings.patch \
 	file://fixes/0006-uvcvideo-Fix-data-type-for-pan-tilt-control.patch \
 	file://fixes/0007-ti_am335x_tsc-touchscreen-jitter-fix.patch \
-	file://fixes/0008-deb-pkg-sync-with-v3.14.patch \
-	file://fixes/0009-omap-RS485-support-by-Michael-Musset.patch \
+	file://fixes/0008-omap-RS485-support-by-Michael-Musset.patch \
+	file://fixes/0009-deb-pkg-sync-with-v3.14.patch \
 	file://machinekit/0001-Add-dir-changeable-property-to-gpio-of-helper.patch \
+	file://backports/0001-backport-v3.13.7-tpm_i2c_atmel.c.patch \
 	file://btrfs/0001-decompressor-add-LZ4-decompressor-module.patch \
 	file://btrfs/0002-lib-add-support-for-LZ4-compressed-kernel.patch \
 	file://btrfs/0003-lib-add-lz4-compressor-module.patch \

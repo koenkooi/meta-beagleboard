@@ -1,4 +1,4 @@
-From 9eb44b88870b47ea6dc83bda3197f4b9908c9a64 Mon Sep 17 00:00:00 2001
+From 33ffdd8de66266654341900cdc25c03b0127778b Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 10 Jul 2013 23:50:05 +0300
 Subject: [PATCH 6/6] leds: pwm: Enable compilation on this version of the
@@ -55,5 +55,5 @@ index faf52c0..730c7c6 100644
  				INIT_WORK(&led_dat->work, led_pwm_work);
  
 -- 
-1.8.2.1
+1.9.0
 

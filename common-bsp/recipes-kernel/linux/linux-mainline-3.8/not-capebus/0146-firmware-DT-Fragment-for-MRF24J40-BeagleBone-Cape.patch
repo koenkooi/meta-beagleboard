@@ -1,4 +1,4 @@
-From 4d9a18d07e47598a333d30fc35de887fd3a87462 Mon Sep 17 00:00:00 2001
+From e13d671ec76d18cde32c43d1aa5bba63188bc79d Mon Sep 17 00:00:00 2001
 From: Alan Ott <alan@signal11.us>
 Date: Thu, 14 Mar 2013 09:36:14 -0400
 Subject: [PATCH 146/184] firmware: DT Fragment for MRF24J40 BeagleBone Cape
@@ -109,5 +109,5 @@ index 0000000..cdef7e2
 +	};
 +};
 -- 
-1.8.2.1
+1.9.0
 

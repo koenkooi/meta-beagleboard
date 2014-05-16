@@ -1,4 +1,4 @@
-From f35574ad3fc70d28d8b681ae6a6c09d62e3e3ab3 Mon Sep 17 00:00:00 2001
+From 8b504545c9bf25d6dcc5c3d63355bb25b7a48ec6 Mon Sep 17 00:00:00 2001
 From: Russell King <rmk+kernel@arm.linux.org.uk>
 Date: Thu, 16 May 2013 19:25:58 +0000
 Subject: [PATCH 11/27] drm/i2c: nxp-tda998x: fix EDID reading on TDA19988
@@ -13,7 +13,7 @@ Signed-off-by: Russell King <rmk+kernel@arm.linux.org.uk>
  1 file changed, 13 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/gpu/drm/i2c/tda998x_drv.c b/drivers/gpu/drm/i2c/tda998x_drv.c
-index 412ba4f..9ac4ed9 100644
+index 4432eea..27550a7 100644
 --- a/drivers/gpu/drm/i2c/tda998x_drv.c
 +++ b/drivers/gpu/drm/i2c/tda998x_drv.c
 @@ -253,6 +253,8 @@ struct tda998x_priv {
@@ -69,5 +69,5 @@ index 412ba4f..9ac4ed9 100644
  	kfree(block);
  	return NULL;
 -- 
-1.8.2.1
+1.9.0
 

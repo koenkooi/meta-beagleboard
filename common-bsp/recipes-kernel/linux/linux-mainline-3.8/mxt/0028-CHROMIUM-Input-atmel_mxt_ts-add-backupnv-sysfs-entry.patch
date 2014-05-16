@@ -1,4 +1,4 @@
-From f2abd710f3652befe5410332be36dd4370e87f51 Mon Sep 17 00:00:00 2001
+From b6f83be0fba0c333f2d4162d1759ac8c7314f128 Mon Sep 17 00:00:00 2001
 From: Daniel Kurtz <djkurtz@chromium.org>
 Date: Mon, 19 Mar 2012 10:09:41 +0800
 Subject: [PATCH 28/57] CHROMIUM: Input: atmel_mxt_ts - add backupnv sysfs
@@ -73,5 +73,5 @@ index 120d766..c2891f2 100644
  	&dev_attr_config_csum.attr,
  	&dev_attr_fw_version.attr,
 -- 
-1.8.2.1
+1.9.0
 

@@ -1,4 +1,4 @@
-From f2a39bf2b85b051bc8251083cf852ae403f1d9c2 Mon Sep 17 00:00:00 2001
+From cd8cab4bfc37bf51675a2afb6fa356d6f88c0f72 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Thu, 21 Mar 2013 14:34:24 +0200
 Subject: [PATCH 133/184] Update iio helper with more channels
@@ -40,5 +40,5 @@ index 3165702..f1cf814 100644
  			};
  		};
 -- 
-1.8.2.1
+1.9.0
 
