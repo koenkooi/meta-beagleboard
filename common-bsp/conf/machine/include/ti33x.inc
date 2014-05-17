@@ -3,7 +3,7 @@ require conf/machine/include/soc-family.inc
 
 require conf/machine/include/tune-cortexa8.inc
 # Increase this everytime you change something in the kernel
-MACHINE_KERNEL_PR = "r24"
+MACHINE_KERNEL_PR = "r25"
 
 KERNEL_IMAGETYPE = "zImage"
 
