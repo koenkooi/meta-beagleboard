@@ -1,0 +1,13 @@
+diff --git a/drivers/uio/uio_pruss.c b/drivers/uio/uio_pruss.c
+index 96c4a19..722f9b6 100644
+--- a/drivers/uio/uio_pruss.c
++++ b/drivers/uio/uio_pruss.c
+@@ -155,7 +155,7 @@ static int pruss_probe(struct platform_device *dev)
+ 		goto out_free;
+ 	}
+ 
+-	if (pdata->sram_pool) {
++	if (pdata && pdata->sram_pool) {
+ 		gdev->sram_pool = pdata->sram_pool;
+ 		gdev->sram_vaddr =
+ 			(unsigned long)gen_pool_dma_alloc(gdev->sram_pool,
