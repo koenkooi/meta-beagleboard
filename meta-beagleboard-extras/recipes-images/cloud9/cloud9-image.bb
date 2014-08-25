@@ -26,7 +26,7 @@ IMAGE_INSTALL += " \
 	tar \
 	gdb gdbserver \
 	nodejs-dev \
-	mplayer2 \
+	 \
 	tslib-tests tslib-calibrate \
 	iproute2 canutils \
 	connman-tests \
