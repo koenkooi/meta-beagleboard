@@ -5,14 +5,12 @@ KERNEL_IMAGETYPE ?= "zImage"
 
 COMPATIBLE_MACHINE = "(beaglebone)"
 
-# The main PR is now using MACHINE_KERNEL_PR, for omap3 see conf/machine/include/omap3.inc
-MACHINE_KERNEL_PR_append = "z"
-
 FILESPATH =. "${FILE_DIRNAME}/linux-beagleboard-3.8:${FILE_DIRNAME}/linux-beagleboard-3.8/${MACHINE}:"
 
 S = "${WORKDIR}/git"
 
 PV = "3.8.13"
+PR = "r26"
 
 SRC_URI = "git://github.com/beagleboard/linux.git;branch=3.8"
 SRCREV_pn-${PN} = "61a5e5a9d2362817f4445ce589a710df07d0c042"
