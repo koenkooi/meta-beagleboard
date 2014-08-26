@@ -21,7 +21,7 @@ IMAGE_INSTALL += " \
 	rt-tests \
 	evtest \
 	bc \
-	packagegroup-ti-test \
+	packagegroup-hw-test \
 	kernel-modules \
 	${EXTRA_MACHINE_IMAGE_INSTALL} \
 "
