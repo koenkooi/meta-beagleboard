@@ -28,12 +28,8 @@ BRANCH = "ti-linux-3.14.y"
 SRCREV = "f56742085ff39d6aa7f487c14a6abff473b4b810"
 PV = "3.14.19"
 
-# Append to the MACHINE_KERNEL_PR so that a new SRCREV will cause a rebuild
-
 KERNEL_CONFIG_DIR = "${S}/ti_config_fragments"
-KERNEL_CONFIG_FRAGMENTS = "${KERNEL_CONFIG_DIR}/audio_display.cfg ${KERNEL_CONFIG_DIR}/baseport.cfg \
-                           ${KERNEL_CONFIG_DIR}/connectivity.cfg ${KERNEL_CONFIG_DIR}/ipc.cfg \
-                           ${KERNEL_CONFIG_DIR}/power.cfg \
+KERNEL_CONFIG_FRAGMENTS = " \
                            ${WORKDIR}/configs/0001-enable-capemgr.cfg \
                            ${WORKDIR}/configs/enable-led-gpio.cfg \
                            ${WORKDIR}/configs/enable-w1-gpio.cfg \
