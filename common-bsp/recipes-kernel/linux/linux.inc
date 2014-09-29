@@ -95,6 +95,7 @@ do_configure_prepend() {
                 -e /CONFIG_SIGNALFD/d \
                 -e /CONFIG_TMPFS_POSIX_ACL/d \
                 -e /CONFIG_BLK_DEV_BSG/d \
+                -e /CONFIG_AUTOFS4_FS/d \
                 -i '${S}/.config'
 
             echo '# CONFIG_SYSFS_DEPRECATED is not set' >> ${S}/.config
@@ -111,6 +112,7 @@ do_configure_prepend() {
             echo 'CONFIG_BLK_DEV_BSG=y' >> ${S}/.config
             echo 'CONFIG_DEVTMPFS=y' >> ${S}/.config
             echo 'CONFIG_DEVTMPFS_MOUNT=y' >> ${S}/.config
+            echo 'CONFIG_AUTOFS4_FS=y' >> ${S}/.config
 
         # Newer inits like systemd need cgroup support
             sed -e /CONFIG_CGROUP_SCHED/d \
