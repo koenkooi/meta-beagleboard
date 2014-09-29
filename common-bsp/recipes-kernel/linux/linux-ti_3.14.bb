@@ -25,8 +25,8 @@ S = "${WORKDIR}/git"
 
 BRANCH = "ti-linux-3.14.y"
 
-SRCREV = "367e55fbd8b6a7fb853f44a4f854eaadbbfd68c2"
-PV = "3.14.17"
+SRCREV = "f56742085ff39d6aa7f487c14a6abff473b4b810"
+PV = "3.14.19"
 
 # Append to the MACHINE_KERNEL_PR so that a new SRCREV will cause a rebuild
 
@@ -44,9 +44,6 @@ KERNEL_CONFIG_FRAGMENTS_append_ti33x = " ${WORKDIR}/non-smp.cfg"
 # Patches necessary to make SGX graphics work with this kernel version
 
 SRC_URI = "git://git.ti.com/ti-linux-kernel/ti-linux-kernel.git;protocol=git;branch=${BRANCH} \
-           file://sgx/0001-HACK-drm-fb_helper-enable-panning-support.patch \
-           file://sgx/0002-HACK-drm-tilcdc-add-vsync-callback-for-use-in-omaplf.patch \
-           file://sgx/0003-drm-tilcdc-fix-the-ping-pong-dma-tearing-issue-seen-.patch \
            file://capemgr/0001-capemgr-Capemgr-makefiles-and-Kconfig-fragments.patch \
            file://capemgr/0002-capemgr-Beaglebone-capemanager.patch \
            file://capemgr/0003-capemgr-Remove-__devinit-__devexit.patch \

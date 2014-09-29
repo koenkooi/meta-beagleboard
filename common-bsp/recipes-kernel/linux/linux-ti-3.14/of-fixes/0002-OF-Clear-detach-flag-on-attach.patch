@@ -1,4 +1,4 @@
-From a49ef9a810f9d78f24598dd95598f17ab9a37837 Mon Sep 17 00:00:00 2001
+From 1271b5f51edd1c10a08d4c74677aad1cb1dfa228 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Wed, 27 Feb 2013 11:26:34 +0200
 Subject: [PATCH 2/8] OF: Clear detach flag on attach
@@ -12,10 +12,10 @@ Signed-off-by: Pantelis Antoniou <panto@antoniou-consulting.com>
  1 file changed, 1 insertion(+)
 
 diff --git a/drivers/of/base.c b/drivers/of/base.c
-index 7d4c70f..ca10916 100644
+index 93e0ba4..9dc9987 100644
 --- a/drivers/of/base.c
 +++ b/drivers/of/base.c
-@@ -1641,6 +1641,7 @@ int of_attach_node(struct device_node *np)
+@@ -1711,6 +1711,7 @@ int of_attach_node(struct device_node *np)
  	np->allnext = of_allnodes;
  	np->parent->child = np;
  	of_allnodes = np;
@@ -24,5 +24,5 @@ index 7d4c70f..ca10916 100644
  
  	of_add_proc_dt_entry(np);
 -- 
-1.9.1
+1.9.0
 

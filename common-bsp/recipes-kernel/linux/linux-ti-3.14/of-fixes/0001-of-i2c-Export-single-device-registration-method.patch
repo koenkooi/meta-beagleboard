@@ -1,4 +1,4 @@
-From ef074758acb56a01a41a703fd75718c3f7f5a31e Mon Sep 17 00:00:00 2001
+From ad31327bfbbfa6ad68247a7c7f503c4261a1aca8 Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Fri, 6 Sep 2013 08:57:51 +0200
 Subject: [PATCH 1/8] of: i2c: Export single device registration method
@@ -13,7 +13,7 @@ Signed-off-by: Pantelis Antoniou <panto@antoniou-consulting.com>
  2 files changed, 65 insertions(+), 45 deletions(-)
 
 diff --git a/drivers/i2c/i2c-core.c b/drivers/i2c/i2c-core.c
-index 3be58f8..cd5e5bd 100644
+index 5fb80b8..253ac32 100644
 --- a/drivers/i2c/i2c-core.c
 +++ b/drivers/i2c/i2c-core.c
 @@ -48,6 +48,7 @@
@@ -24,7 +24,7 @@ index 3be58f8..cd5e5bd 100644
  #include <asm/uaccess.h>
  
  #include "i2c-core.h"
-@@ -963,63 +964,72 @@ static void i2c_scan_static_board_info(struct i2c_adapter *adapter)
+@@ -982,63 +983,72 @@ static void i2c_scan_static_board_info(struct i2c_adapter *adapter)
  /* OF support code */
  
  #if IS_ENABLED(CONFIG_OF)
@@ -143,10 +143,10 @@ index 3be58f8..cd5e5bd 100644
  
  static int of_dev_node_match(struct device *dev, void *data)
 diff --git a/include/linux/i2c.h b/include/linux/i2c.h
-index 5677fb5..513fc1e 100644
+index deddeb8..d9347a7 100644
 --- a/include/linux/i2c.h
 +++ b/include/linux/i2c.h
-@@ -551,6 +551,9 @@ extern struct i2c_client *of_find_i2c_device_by_node(struct device_node *node);
+@@ -563,6 +563,9 @@ extern struct i2c_client *of_find_i2c_device_by_node(struct device_node *node);
  /* must call put_device() when done with returned i2c_adapter device */
  extern struct i2c_adapter *of_find_i2c_adapter_by_node(struct device_node *node);
  
@@ -156,7 +156,7 @@ index 5677fb5..513fc1e 100644
  #else
  
  static inline struct i2c_client *of_find_i2c_device_by_node(struct device_node *node)
-@@ -562,6 +565,13 @@ static inline struct i2c_adapter *of_find_i2c_adapter_by_node(struct device_node
+@@ -574,6 +577,13 @@ static inline struct i2c_adapter *of_find_i2c_adapter_by_node(struct device_node
  {
  	return NULL;
  }
@@ -171,5 +171,5 @@ index 5677fb5..513fc1e 100644
  
  #endif /* _LINUX_I2C_H */
 -- 
-1.9.1
+1.9.0
 

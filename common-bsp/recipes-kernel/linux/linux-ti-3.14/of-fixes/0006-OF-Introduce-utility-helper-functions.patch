@@ -1,4 +1,4 @@
-From d09562a676502f8e0046f4710642e71bd343f7fb Mon Sep 17 00:00:00 2001
+From 396579b103c917b661b4d44f297835bdacb7037e Mon Sep 17 00:00:00 2001
 From: Pantelis Antoniou <panto@antoniou-consulting.com>
 Date: Thu, 3 Jan 2013 12:11:31 +0200
 Subject: [PATCH 6/8] OF: Introduce utility helper functions
@@ -23,7 +23,7 @@ Signed-off-by: Pantelis Antoniou <panto@antoniou-consulting.com>
  create mode 100644 drivers/of/util.c
 
 diff --git a/drivers/of/Makefile b/drivers/of/Makefile
-index efd0510..9bc6d8c 100644
+index ed9660a..26de2ed 100644
 --- a/drivers/of/Makefile
 +++ b/drivers/of/Makefile
 @@ -1,4 +1,4 @@
@@ -292,10 +292,10 @@ index 0000000..5117e2b
 +}
 +
 diff --git a/include/linux/of.h b/include/linux/of.h
-index a56c450..9d69bd2 100644
+index 07cef10..f8c8297 100644
 --- a/include/linux/of.h
 +++ b/include/linux/of.h
-@@ -662,4 +662,63 @@ extern void proc_device_tree_update_prop(struct proc_dir_entry *pde,
+@@ -703,4 +703,63 @@ extern void proc_device_tree_update_prop(struct proc_dir_entry *pde,
  					 struct property *oldprop);
  #endif
  
@@ -360,5 +360,5 @@ index a56c450..9d69bd2 100644
 +
  #endif /* _LINUX_OF_H */
 -- 
-1.9.1
+1.9.0
 
