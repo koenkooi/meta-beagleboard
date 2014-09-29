@@ -86,3 +86,7 @@ SRC_URI = "git://git.ti.com/ti-linux-kernel/ti-linux-kernel.git;protocol=git;bra
            file://configs/enable-w1-gpio.cfg \
           "
 
+do_configure_prepend() {
+	# fix up kernel config fragments
+	sed -i /^CONFIG_DRM/d ${KERNEL_CONFIG_DIR}/*.cfg 
+}
