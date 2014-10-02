@@ -72,6 +72,7 @@ SRC_URI = "git://git.ti.com/ti-linux-kernel/ti-linux-kernel.git;protocol=git;bra
            file://pru/0001-These-are-the-patches-necessary-for-enabling-the-PRU.patch \
            file://pru/0002-ARM-omap-add-DT-support-for-deasserting-hardware-res.patch \
            file://pru/0003-check-for-presence-of-pdata.patch \
+           file://0001-arm-Export-cache-flush-management-symbols-when-MULTI.patch \
            file://defconfig \
            file://non-smp.cfg \
            file://configs/0001-enable-capemgr.cfg \
