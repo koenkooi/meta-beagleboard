@@ -12,8 +12,8 @@ S = "${WORKDIR}/git"
 PV = "3.8.13"
 PR = "r26"
 
-SRC_URI = "git://github.com/beagleboard/linux.git;branch=3.8"
-SRCREV_pn-${PN} = "61a5e5a9d2362817f4445ce589a710df07d0c042"
+SRC_URI = "git://github.com/beagleboard/linux.git;branch=3.8;nobranch=1"
+SRCREV_pn-${PN} = "82e286cb42ac15b107b4c4613c7eee8da27030a7"
 
 do_configure_prepend() {
 	if [ -e ${WORKDIR}/am335x-pm-firmware.bin ] ; then
