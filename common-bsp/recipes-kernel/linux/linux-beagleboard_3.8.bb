@@ -19,6 +19,10 @@ do_configure_prepend() {
 	if [ -e ${WORKDIR}/am335x-pm-firmware.bin ] ; then
 		cp ${WORKDIR}/am335x-pm-firmware.bin ${S}/firmware
 	fi
+
+	if [ -e ${WORKDIR}/merge_config.sh ] ; then
+                cp ${WORKDIR}/merge_config.sh ${S}/scripts/kconfig
+        fi
 }
 
 SRC_URI += " \
@@ -37,4 +41,5 @@ SRC_URI += " \
 	file://defconfig \
 	file://am335x-pm-firmware.bin \
 	file://logo_linux_clut224.ppm \
+	file://merge_config.sh \
 "
