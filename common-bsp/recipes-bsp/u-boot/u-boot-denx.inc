@@ -11,7 +11,9 @@ DEPENDS = "mtd-utils"
 PACKAGE_ARCH = "${MACHINE_ARCH}"
 PARALLEL_MAKE=""
 
-EXTRA_OEMAKE = "CROSS_COMPILE=${TARGET_PREFIX}"
+TOOLCHAIN_OPTIONS ?= ""
+
+EXTRA_OEMAKE = 'CROSS_COMPILE=${TARGET_PREFIX} CC="${TARGET_PREFIX}gcc ${TOOLCHAIN_OPTIONS}"'
 
 UBOOT_MACHINE ?= "${MACHINE}_config"
 UBOOT_BINARY ?= "u-boot.bin"
@@ -19,14 +21,30 @@ UBOOT_IMAGE ?= "u-boot-${MACHINE}-${PV}-${PR}.bin"
 UBOOT_SYMLINK ?= "u-boot-${MACHINE}.bin"
 UBOOT_MAKE_TARGET ?= "all"
 
+# Allow setting an additional version string that will be picked up by the
+# u-boot build system and appended to the u-boot version.  If the .scmversion
+# file already exists it will not be overwritten.
+UBOOT_LOCALVERSION ?= ""
+
+
 do_configure () {
 	oe_runmake ${UBOOT_MACHINE}
 }
 
 do_compile () {
+	if [ "${@bb.utils.contains('DISTRO_FEATURES', 'ld-is-gold', 'ld-is-gold', '', d)}" = "ld-is-gold" ] ; then
+		sed -i 's/$(CROSS_COMPILE)ld$/$(CROSS_COMPILE)ld.bfd/g' config.mk
+	fi
+
 	unset LDFLAGS
 	unset CFLAGS
 	unset CPPFLAGS
+
+	if [ ! -e ${B}/.scmversion -a ! -e ${S}/.scmversion ] ; then
+		echo ${UBOOT_LOCALVERSION} > ${B}/.scmversion
+		echo ${UBOOT_LOCALVERSION} > ${S}/.scmversion
+	fi
+
 	oe_runmake ${UBOOT_MAKE_TARGET}
 }
 
