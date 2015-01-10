@@ -40,31 +40,31 @@ do_configure_prepend() {
         sed -i -e 's/getline/parseline/g' ${S}/scripts/unifdef.c
 
 
-        echo "" > ${S}/.config
+        echo "" > ${B}/.config
 
         #
         # logo support, if you supply logo_linux_clut224.ppm in SRC_URI, then it's going to be used
         #
         if [ -e ${WORKDIR}/${LOGO_SIZE}/logo_linux_clut224.ppm ]; then
                 install -m 0644 ${WORKDIR}/${LOGO_SIZE}/logo_linux_clut224.ppm drivers/video/logo/logo_linux_clut224.ppm
-                echo "CONFIG_LOGO=y"                    >> ${S}/.config
-                echo "CONFIG_LOGO_LINUX_CLUT224=y"      >> ${S}/.config
+                echo "CONFIG_LOGO=y"                    >> ${B}/.config
+                echo "CONFIG_LOGO_LINUX_CLUT224=y"      >> ${B}/.config
         fi
 
 	# Enable thumb2 fixup for specific issue in angstrom toolchains when used on A8 r1p[012] silicon
         if [ "${CORTEXA8FIXUP}" = "yes" ] ; then
             sed -i -e /CONFIG_ARM_ERRATA_430973/d ${WORKDIR}/defconfig
-            echo "CONFIG_ARM_ERRATA_430973=y" >> ${S}/.config
+            echo "CONFIG_ARM_ERRATA_430973=y" >> ${B}/.config
         fi
 
 	#
 	# endian support
 	#
         if [ "${SITEINFO_ENDIANNESS}" = "be" ]; then
-                echo "CONFIG_CPU_BIG_ENDIAN=y"          >> ${S}/.config
+                echo "CONFIG_CPU_BIG_ENDIAN=y"          >> ${B}/.config
         fi
 
-        echo "CONFIG_CMDLINE=\"${CMDLINE}\"" >> ${S}/.config
+        echo "CONFIG_CMDLINE=\"${CMDLINE}\"" >> ${B}/.config
 
         sed -e '/CONFIG_OABI_COMPAT=/d' \
             -e '/CONFIG_CMDLINE=/d' \
@@ -73,10 +73,10 @@ do_configure_prepend() {
             -e '/CONFIG_LOGO_LINUX_CLUT224=/d' \
             -e '/CONFIG_LOCALVERSION/d' \
             -e '/CONFIG_LOCALVERSION_AUTO/d' \
-	    < '${WORKDIR}/defconfig' >>'${S}/.config'
+	    < '${WORKDIR}/defconfig' >>'${B}/.config'
 
-        echo 'CONFIG_LOCALVERSION=""' >>${S}/.config
-        echo '# CONFIG_LOCALVERSION_AUTO is not set' >>${S}/.config
+        echo 'CONFIG_LOCALVERSION=""' >>${B}/.config
+        echo '# CONFIG_LOCALVERSION_AUTO is not set' >>${B}/.config
 
         #
         # Udev quirks
@@ -96,38 +96,38 @@ do_configure_prepend() {
                 -e /CONFIG_TMPFS_POSIX_ACL/d \
                 -e /CONFIG_BLK_DEV_BSG/d \
                 -e /CONFIG_AUTOFS4_FS/d \
-                -i '${S}/.config'
+                -i '${B}/.config'
 
-            echo '# CONFIG_SYSFS_DEPRECATED is not set' >> ${S}/.config
-            echo '# CONFIG_SYSFS_DEPRECATED_V2 is not set' >> ${S}/.config
-            echo 'CONFIG_HOTPLUG=y' >> ${S}/.config
-            echo 'CONFIG_UEVENT_HELPER_PATH=""' >> ${S}/.config
-            echo 'CONFIG_UNIX=y' >> ${S}/.config
-            echo 'CONFIG_SYSFS=y' >> ${S}/.config
-            echo 'CONFIG_PROC_FS=y' >> ${S}/.config
-            echo 'CONFIG_TMPFS=y' >> ${S}/.config
-            echo 'CONFIG_INOTIFY_USER=y' >> ${S}/.config
-            echo 'CONFIG_SIGNALFD=y' >> ${S}/.config
-            echo 'CONFIG_TMPFS_POSIX_ACL=y' >> ${S}/.config
-            echo 'CONFIG_BLK_DEV_BSG=y' >> ${S}/.config
-            echo 'CONFIG_DEVTMPFS=y' >> ${S}/.config
-            echo 'CONFIG_DEVTMPFS_MOUNT=y' >> ${S}/.config
-            echo 'CONFIG_AUTOFS4_FS=y' >> ${S}/.config
+            echo '# CONFIG_SYSFS_DEPRECATED is not set' >> ${B}/.config
+            echo '# CONFIG_SYSFS_DEPRECATED_V2 is not set' >> ${B}/.config
+            echo 'CONFIG_HOTPLUG=y' >> ${B}/.config
+            echo 'CONFIG_UEVENT_HELPER_PATH=""' >> ${B}/.config
+            echo 'CONFIG_UNIX=y' >> ${B}/.config
+            echo 'CONFIG_SYSFS=y' >> ${B}/.config
+            echo 'CONFIG_PROC_FS=y' >> ${B}/.config
+            echo 'CONFIG_TMPFS=y' >> ${B}/.config
+            echo 'CONFIG_INOTIFY_USER=y' >> ${B}/.config
+            echo 'CONFIG_SIGNALFD=y' >> ${B}/.config
+            echo 'CONFIG_TMPFS_POSIX_ACL=y' >> ${B}/.config
+            echo 'CONFIG_BLK_DEV_BSG=y' >> ${B}/.config
+            echo 'CONFIG_DEVTMPFS=y' >> ${B}/.config
+            echo 'CONFIG_DEVTMPFS_MOUNT=y' >> ${B}/.config
+            echo 'CONFIG_AUTOFS4_FS=y' >> ${B}/.config
 
         # Newer inits like systemd need cgroup support
             sed -e /CONFIG_CGROUP_SCHED/d \
                 -e /CONFIG_CGROUPS/d \
-                -i '${S}/.config'
+                -i '${B}/.config'
             
-            echo 'CONFIG_CGROUP_SCHED=y' >> ${S}/.config
-            echo 'CONFIG_CGROUPS=y' >> ${S}/.config
-            echo 'CONFIG_CGROUP_NS=y' >> ${S}/.config
-            echo 'CONFIG_CGROUP_FREEZER=y' >> ${S}/.config
-            echo 'CONFIG_CGROUP_DEVICE=y' >> ${S}/.config
-            echo 'CONFIG_CPUSETS=y' >> ${S}/.config
-            echo 'CONFIG_PROC_PID_CPUSET=y' >> ${S}/.config
-            echo 'CONFIG_CGROUP_CPUACCT=y' >> ${S}/.config
-            echo 'CONFIG_RESOURCE_COUNTERS=y' >> ${S}/.config
+            echo 'CONFIG_CGROUP_SCHED=y' >> ${B}/.config
+            echo 'CONFIG_CGROUPS=y' >> ${B}/.config
+            echo 'CONFIG_CGROUP_NS=y' >> ${B}/.config
+            echo 'CONFIG_CGROUP_FREEZER=y' >> ${B}/.config
+            echo 'CONFIG_CGROUP_DEVICE=y' >> ${B}/.config
+            echo 'CONFIG_CPUSETS=y' >> ${B}/.config
+            echo 'CONFIG_PROC_PID_CPUSET=y' >> ${B}/.config
+            echo 'CONFIG_CGROUP_CPUACCT=y' >> ${B}/.config
+            echo 'CONFIG_RESOURCE_COUNTERS=y' >> ${B}/.config
 
         #
         # root-over-nfs-over-usb-eth support. Limited, but should cover some cases.
@@ -143,18 +143,18 @@ do_configure_prepend() {
                     -e '/CONFIG_NFS_FS=/d' \
                     -e '/CONFIG_ROOT_NFS=/d' \
                     -e '/CONFIG_CMDLINE=/d' \
-                    -i ${S}/.config
-                echo "CONFIG_INET=y"                     >> ${S}/.config
-                echo "CONFIG_IP_PNP=y"                   >> ${S}/.config
-                echo "CONFIG_USB_GADGET=y"               >> ${S}/.config
-                echo "CONFIG_USB_GADGET_SELECTED=y"      >> ${S}/.config
-                echo "CONFIG_USB_ETH=y"                  >> ${S}/.config
-                echo "CONFIG_NFS_FS=y"                   >> ${S}/.config
-                echo "CONFIG_ROOT_NFS=y"                 >> ${S}/.config
-                echo "CONFIG_CMDLINE=\"${CMDLINE_NFSROOT_USB}\"" >> ${S}/.config
+                    -i ${B}/.config
+                echo "CONFIG_INET=y"                     >> ${B}/.config
+                echo "CONFIG_IP_PNP=y"                   >> ${B}/.config
+                echo "CONFIG_USB_GADGET=y"               >> ${B}/.config
+                echo "CONFIG_USB_GADGET_SELECTED=y"      >> ${B}/.config
+                echo "CONFIG_USB_ETH=y"                  >> ${B}/.config
+                echo "CONFIG_NFS_FS=y"                   >> ${B}/.config
+                echo "CONFIG_ROOT_NFS=y"                 >> ${B}/.config
+                echo "CONFIG_CMDLINE=\"${CMDLINE_NFSROOT_USB}\"" >> ${B}/.config
         fi
 
-        echo 'CONFIG_FHANDLE=y' >> ${S}/.config
+        echo 'CONFIG_FHANDLE=y' >> ${B}/.config
 
         # Check for kernel config fragments.  The assumption is that the config
         # fragment will be specified with the absolute path.  For example:
@@ -181,7 +181,7 @@ do_configure_prepend() {
             done
 
             # Now that all the fragments are located merge them.
-            ( cd ${WORKDIR} && ${S}/scripts/kconfig/merge_config.sh -m -r -O ${S} ${S}/.config ${KERNEL_CONFIG_FRAGMENTS} 1>&2 )
+            ( cd ${WORKDIR} && ${S}/scripts/kconfig/merge_config.sh -m -r -O ${S} ${B}/.config ${KERNEL_CONFIG_FRAGMENTS} 1>&2 )
         fi
 
 	yes '' | oe_runmake oldconfig
