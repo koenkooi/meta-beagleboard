@@ -53,6 +53,11 @@ do_install () {
 	install ${B}/${UBOOT_BINARY} ${D}/boot/${UBOOT_IMAGE}
 	ln -sf ${UBOOT_IMAGE} ${D}/boot/${UBOOT_BINARY}
 
+	if [ -e ${B}/MLO ] ; then
+		install ${B}/MLO ${D}/boot/MLO-${MACHINE}-${PV}
+		ln -sf MLO-${MACHINE}-${PV} ${D}/boot/MLO
+	fi
+
 	if [ -e ${WORKDIR}/fw_env.config ] ; then
 		install -d ${D}${sysconfdir}
 		install -m 644 ${WORKDIR}/fw_env.config ${D}${sysconfdir}/fw_env.config
