@@ -50,7 +50,7 @@ do_compile () {
 
 do_install () {
 	install -d ${D}/boot
-	install ${S}/${UBOOT_BINARY} ${D}/boot/${UBOOT_IMAGE}
+	install ${B}/${UBOOT_BINARY} ${D}/boot/${UBOOT_IMAGE}
 	ln -sf ${UBOOT_IMAGE} ${D}/boot/${UBOOT_BINARY}
 
 	if [ -e ${WORKDIR}/fw_env.config ] ; then
@@ -70,15 +70,15 @@ addtask deploy before do_package after do_compile
 
 do_deploy () {
 	install -d ${DEPLOYDIR}
-	install ${S}/${UBOOT_BINARY} ${DEPLOYDIR}/${UBOOT_IMAGE}
+	install ${B}/${UBOOT_BINARY} ${DEPLOYDIR}/${UBOOT_IMAGE}
 
 	cd ${DEPLOYDIR}
 	rm -f ${UBOOT_BINARY} ${UBOOT_SYMLINK}
 	ln -sf ${UBOOT_IMAGE} ${UBOOT_SYMLINK}
 	ln -sf ${UBOOT_IMAGE} ${UBOOT_BINARY}
 
-	if [ -e ${S}/MLO ] ; then
-		install ${S}/MLO ${DEPLOYDIR}/MLO-${MACHINE}-${PV}
+	if [ -e ${B}/MLO ] ; then
+		install ${B}/MLO ${DEPLOYDIR}/MLO-${MACHINE}-${PV}
 		rm -f ${DEPLOYDIR}/MLO-${MACHINE} ${DEPLOYDIR}/MLO
 		ln -sf MLO-${MACHINE}-${PV} ${DEPLOYDIR}/MLO-${MACHINE}
 		ln -sf MLO-${MACHINE}-${PV} ${DEPLOYDIR}/MLO
