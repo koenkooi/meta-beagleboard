@@ -202,8 +202,8 @@ do_install_append() {
 	oe_runmake headers_install INSTALL_HDR_PATH=${D}${exec_prefix}/src/linux-${KERNEL_VERSION} ARCH=$ARCH
 	oe_runmake firmware_install INSTALL_MOD_PATH=${D} ARCH=$ARCH
 	install -d ${D}/boot
-	make dtbs || true
-	install -m 0644 ${S}/arch/arm/boot/dts/*.dtb ${D}/boot || true
+	make -C ${S} O=${B} dtbs || true
+	install -m 0644 ${B}/arch/arm/boot/dts/*.dtb ${D}/boot || true
 
 	install -d ${D}/lib/firmware
 	install -m 0644 ${S}/firmware/capes/*.dts ${D}/lib/firmware || true
