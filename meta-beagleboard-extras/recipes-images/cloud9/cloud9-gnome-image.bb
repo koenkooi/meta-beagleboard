@@ -5,7 +5,7 @@ require cloud9-image.bb
 # SoC specific packages, mostly 3D or multimedia related
 SOCSUPPORT = ""
 SOCSUPPORT_omap3 = "  gstreamer-ti omapfbplay"
-SOCSUPPORT_ti33x = "  gst-ffmpeg  beaglebone-capes"
+SOCSUPPORT_ti33x = "  beaglebone-capes"
 
 IMAGE_INSTALL += " \
                   angstrom-packagegroup-gnome gimp abiword gedit midori epiphany firefox matchbox-terminal \
