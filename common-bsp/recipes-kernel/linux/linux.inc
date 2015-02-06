@@ -46,7 +46,7 @@ do_configure_prepend() {
         # logo support, if you supply logo_linux_clut224.ppm in SRC_URI, then it's going to be used
         #
         if [ -e ${WORKDIR}/${LOGO_SIZE}/logo_linux_clut224.ppm ]; then
-                install -m 0644 ${WORKDIR}/${LOGO_SIZE}/logo_linux_clut224.ppm ${S}/drivers/video/logo/logo_linux_clut224.ppm
+                install -m 0644 ${WORKDIR}/${LOGO_SIZE}/logo_linux_clut224.ppm drivers/video/logo/logo_linux_clut224.ppm
                 echo "CONFIG_LOGO=y"                    >> ${B}/.config
                 echo "CONFIG_LOGO_LINUX_CLUT224=y"      >> ${B}/.config
         fi
@@ -202,11 +202,13 @@ do_install_append() {
 	oe_runmake headers_install INSTALL_HDR_PATH=${D}${exec_prefix}/src/linux-${KERNEL_VERSION} ARCH=$ARCH
 	oe_runmake firmware_install INSTALL_MOD_PATH=${D} ARCH=$ARCH
 	install -d ${D}/boot
-	make -C ${S} O=${B} dtbs || true
-	install -m 0644 ${B}/arch/arm/boot/dts/*.dtb ${D}/boot || true
+	oe_runmake -C ${S} O=${B} ARCH=$ARCH dtbs || true
+	install -m 0644 ${B}/arch/$ARCH/boot/dts/*.dtb ${D}/boot || true
 
 	install -d ${D}/lib/firmware
 	install -m 0644 ${S}/firmware/capes/*.dts ${D}/lib/firmware || true
+
+	rm -f ${D}${KERNEL_SRC_PATH}/arch/*/vdso/vdso*.so
 }
 
 PACKAGES =+ "kernel-headers"
