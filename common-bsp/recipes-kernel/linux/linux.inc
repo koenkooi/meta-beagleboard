@@ -46,7 +46,7 @@ do_configure_prepend() {
         # logo support, if you supply logo_linux_clut224.ppm in SRC_URI, then it's going to be used
         #
         if [ -e ${WORKDIR}/${LOGO_SIZE}/logo_linux_clut224.ppm ]; then
-                install -m 0644 ${WORKDIR}/${LOGO_SIZE}/logo_linux_clut224.ppm drivers/video/logo/logo_linux_clut224.ppm
+                install -m 0644 ${WORKDIR}/${LOGO_SIZE}/logo_linux_clut224.ppm ${S}/drivers/video/logo/logo_linux_clut224.ppm
                 echo "CONFIG_LOGO=y"                    >> ${B}/.config
                 echo "CONFIG_LOGO_LINUX_CLUT224=y"      >> ${B}/.config
         fi
