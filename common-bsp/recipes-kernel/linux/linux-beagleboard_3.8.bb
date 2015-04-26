@@ -37,7 +37,10 @@ SRC_URI += " \
 	file://btrfs/0009-btrfs-add-lz4hc-wrapper-and-enable-it.patch \
 	file://btrfs/0010-btrfs-reduce-duplicate-code-in-lz4_wrapper.c.patch \
 	file://btrfs/0011-btrfs-select-LZ4-HC-libs.patch \
-        file://0001-net-add-proper-db.txt.patch \
+	file://0001-net-add-proper-db.txt.patch \
+	file://0001-kernel-add-support-for-gcc-5.patch \
+	file://0001-ARM-8158-1-LLVMLinux-use-static-inline-in-ARM-ftrace.patch \
+	file://0001-Input-lifebook-use-static-inline-instead-of-inline-i.patch \
 	file://defconfig \
 	file://am335x-pm-firmware.bin \
 	file://logo_linux_clut224.ppm \
