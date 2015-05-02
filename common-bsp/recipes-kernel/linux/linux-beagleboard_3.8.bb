@@ -41,6 +41,9 @@ SRC_URI += " \
 	file://0001-kernel-add-support-for-gcc-5.patch \
 	file://0001-ARM-8158-1-LLVMLinux-use-static-inline-in-ARM-ftrace.patch \
 	file://0001-Input-lifebook-use-static-inline-instead-of-inline-i.patch \
+	file://0001-Input-sentelic-use-static-inline-instead-of-inline.patch \
+	file://0001-Staging-rtl8188eu-Remove-extern-as-it-is-defined-but.patch \
+	file://0001-Fix-extern-inline-use-for-gcc-4.3-in-c99-mode.patch \
 	file://defconfig \
 	file://am335x-pm-firmware.bin \
 	file://logo_linux_clut224.ppm \
