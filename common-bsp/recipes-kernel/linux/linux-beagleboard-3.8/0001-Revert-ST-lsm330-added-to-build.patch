@@ -1,0 +1,69 @@
+From 7e22048bd68c1c6f4d924f99272e7baa25589ab1 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 9 Aug 2015 17:38:03 +0200
+Subject: [PATCH 1/2] Revert "ST lsm330: added to build"
+
+This reverts commit 65c79c2cf5ba4080711da7dcee1253bd5c8ce171.
+---
+ drivers/input/misc/Makefile     | 2 --
+ drivers/input/misc/lsm330_acc.c | 4 ++--
+ drivers/input/misc/lsm330_gyr.c | 4 ++--
+ 3 files changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/input/misc/Makefile b/drivers/input/misc/Makefile
+index db4ffc7..e19a9cc 100644
+--- a/drivers/input/misc/Makefile
++++ b/drivers/input/misc/Makefile
+@@ -61,5 +61,3 @@ obj-$(CONFIG_INPUT_XEN_KBDDEV_FRONTEND)	+= xen-kbdfront.o
+ obj-$(CONFIG_INPUT_YEALINK)		+= yealink.o
+ obj-y					+= lsm303dlhc_acc.o
+ obj-y					+= lsm303dlhc_mag.o
+-obj-y					+= lsm330_acc.o
+-obj-y					+= lsm330_gyr.o
+diff --git a/drivers/input/misc/lsm330_acc.c b/drivers/input/misc/lsm330_acc.c
+index e184136..672232d 100644
+--- a/drivers/input/misc/lsm330_acc.c
++++ b/drivers/input/misc/lsm330_acc.c
+@@ -1414,7 +1414,7 @@ exit_check_functionality_failed:
+ 	return err;
+ }
+ 
+-static int lsm330_acc_remove(struct i2c_client *client)
++static int __devexit lsm330_acc_remove(struct i2c_client *client)
+ {
+ 	struct lsm330_acc_data *acc = i2c_get_clientdata(client);
+ 
+@@ -1479,7 +1479,7 @@ static struct i2c_driver lsm330_acc_driver = {
+ 			.name = LSM330_ACC_DEV_NAME,
+ 		  },
+ 	.probe = lsm330_acc_probe,
+-	.remove = lsm330_acc_remove,
++	.remove = __devexit_p(lsm330_acc_remove),
+ 	.suspend = lsm330_acc_suspend,
+ 	.resume = lsm330_acc_resume,
+ 	.id_table = lsm330_acc_id,
+diff --git a/drivers/input/misc/lsm330_gyr.c b/drivers/input/misc/lsm330_gyr.c
+index 8901592..4ec229b 100644
+--- a/drivers/input/misc/lsm330_gyr.c
++++ b/drivers/input/misc/lsm330_gyr.c
+@@ -1449,7 +1449,7 @@ err0:
+ 		return err;
+ }
+ 
+-static int lsm330_gyr_remove(struct i2c_client *client)
++static int __devexit lsm330_gyr_remove(struct i2c_client *client)
+ {
+ 	struct lsm330_gyr_status *stat = i2c_get_clientdata(client);
+ 
+@@ -1566,7 +1566,7 @@ static struct i2c_driver lsm330_gyr_driver = {
+ 			.pm = &lsm330_gyr_pm,
+ 	},
+ 	.probe = lsm330_gyr_probe,
+-	.remove = lsm330_gyr_remove,
++	.remove = __devexit_p(lsm330_gyr_remove),
+ 	.id_table = lsm330_gyr_id,
+ 
+ };
+-- 
+2.0.1
+

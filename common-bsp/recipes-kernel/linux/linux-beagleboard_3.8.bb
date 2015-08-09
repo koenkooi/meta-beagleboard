@@ -10,10 +10,10 @@ FILESPATH =. "${FILE_DIRNAME}/linux-beagleboard-3.8:${FILE_DIRNAME}/linux-beagle
 S = "${WORKDIR}/git"
 
 PV = "3.8.13"
-PR = "r27"
+PR = "r28"
 
 SRC_URI = "git://github.com/beagleboard/linux.git;branch=3.8;nobranch=1"
-SRCREV_pn-${PN} = "205cbd63c832ed34695d94985f5a404d37a18546"
+SRCREV_pn-${PN} = "675e3116bfae3034a5713e3dfc79e40c75f001d8"
 
 do_configure_prepend() {
 	if [ -e ${WORKDIR}/am335x-pm-firmware.bin ] ; then
@@ -44,6 +44,8 @@ SRC_URI += " \
 	file://0001-Input-sentelic-use-static-inline-instead-of-inline.patch \
 	file://0001-Staging-rtl8188eu-Remove-extern-as-it-is-defined-but.patch \
 	file://0001-Fix-extern-inline-use-for-gcc-4.3-in-c99-mode.patch \
+        file://0001-Revert-ST-lsm330-added-to-build.patch \
+        file://0002-Revert-ST-lsm303dlhc-patched-for-build-against-3.8-k.patch \
 	file://defconfig \
 	file://am335x-pm-firmware.bin \
 	file://logo_linux_clut224.ppm \
