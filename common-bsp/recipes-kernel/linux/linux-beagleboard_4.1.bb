@@ -9,10 +9,10 @@ FILESPATH =. "${FILE_DIRNAME}/linux-beagleboard-4.1:${FILE_DIRNAME}/linux-beagle
 
 S = "${WORKDIR}/git"
 
-PV = "4.1.4"
+PV = "4.1.15"
 
 SRC_URI = "git://github.com/beagleboard/linux.git;branch=4.1;nobranch=1"
-SRCREV_pn-${PN} = "9bed204b7c801c95cb6901c4b166f125ef1a5ab0"
+SRCREV_pn-${PN} = "dd387851fb2923733ba15708dc8d812e71533a80"
 
 do_configure_prepend() {
 	if [ -e ${WORKDIR}/am335x-pm-firmware.bin ] ; then
