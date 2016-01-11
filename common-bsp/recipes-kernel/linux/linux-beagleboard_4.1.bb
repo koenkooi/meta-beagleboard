@@ -21,6 +21,10 @@ do_configure_prepend() {
 }
 
 SRC_URI += " \
+        file://0001-mt7601u-fix-dma-from-stack-address.patch \
+        file://0002-mt7601u-use-correct-ieee80211_rx-variant.patch \
+        file://0003-mt7601u-fix-tx-status-reporting-contexts.patch \
+        file://0004-mt7601u-lock-out-rx-path-and-tx-status-reporting.patch \
 	file://defconfig \
 	file://logo_linux_clut224.ppm \
 "
