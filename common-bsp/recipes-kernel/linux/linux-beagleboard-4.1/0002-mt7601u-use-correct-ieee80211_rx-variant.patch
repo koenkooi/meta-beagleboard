@@ -1,0 +1,30 @@
+From d9517c0a5d7468a7ea63086057604fcb0fff480e Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kubakici@wp.pl>
+Date: Fri, 31 Jul 2015 15:04:47 +0200
+Subject: [PATCH 2/5] mt7601u: use correct ieee80211_rx variant
+
+Rx is run inside a tasklet so ieee80211_rx() should be used
+instead of ieee80211_rx_ni().
+
+Signed-off-by: Jakub Kicinski <kubakici@wp.pl>
+Signed-off-by: Kalle Valo <kvalo@codeaurora.org>
+---
+ drivers/net/wireless/mediatek/mt7601u/dma.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt7601u/dma.c b/drivers/net/wireless/mediatek/mt7601u/dma.c
+index 7217da4..fb183e3 100644
+--- a/drivers/net/wireless/mediatek/mt7601u/dma.c
++++ b/drivers/net/wireless/mediatek/mt7601u/dma.c
+@@ -112,7 +112,7 @@ static void mt7601u_rx_process_seg(struct mt7601u_dev *dev, u8 *data,
+ 	if (!skb)
+ 		return;
+ 
+-	ieee80211_rx_ni(dev->hw, skb);
++	ieee80211_rx(dev->hw, skb);
+ }
+ 
+ static u16 mt7601u_rx_next_seg_len(u8 *data, u32 data_len)
+-- 
+2.0.1
+
