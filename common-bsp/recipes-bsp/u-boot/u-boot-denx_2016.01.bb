@@ -20,8 +20,7 @@ SRC_URI = "git://git.denx.de/u-boot.git \
            ${FWENV} \
           "
 
-# v2016.01 release tag
-SRCREV = "fa85e826c16b9ce1ad302a57e9c4b24db0d8b930"
+SRCREV = "161b1fe745394f34c4aa506edc964089785919f6"
 
 LIC_FILES_CHKSUM = "file://README;beginline=1;endline=22;md5=2687c5ebfd9cb284491c3204b726ea29"
 
