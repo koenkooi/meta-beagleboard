@@ -7,7 +7,7 @@ COMPATIBLE_MACHINE = "(beaglebone)"
 
 PV = "1.0+git${SRCPV}"
 
-DEPENDS_${PN} = "dtc"
+DEPENDS = "dtc-native"
 
 SRC_URI = "git://github.com/beagleboard/bb.org-overlays.git;branch=master;nobranch=1"
 SRCREV_pn-${PN} = "25cf610eda61a323048bd46a458fe8bf6d1c6af5"
