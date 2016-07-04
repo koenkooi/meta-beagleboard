@@ -1,7 +1,7 @@
 DESCRIPTION = "Device Tree Overlays for bb.org boards"
 
-LICENSE = "MIT"
-LIC_FILES_CHKSUM = "file://${COREBASE}/LICENSE;md5=4d92cd373abda3937c2bc47fbc49d690"
+LICENSE = "GPLv2"
+LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/GPL-2.0;md5=801f80980d171dd6425610833a22dbe6"
 
 COMPATIBLE_MACHINE = "(beaglebone)"
 
@@ -13,10 +13,6 @@ SRC_URI = "git://github.com/beagleboard/bb.org-overlays.git;branch=master;nobran
 SRCREV_pn-${PN} = "25cf610eda61a323048bd46a458fe8bf6d1c6af5"
 
 S = "${WORKDIR}/git"
-
-do_configure() {
-	:
-}
 
 do_compile() {
 	oe_runmake DTC=dtc
