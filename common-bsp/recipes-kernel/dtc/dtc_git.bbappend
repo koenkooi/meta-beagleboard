@@ -1,8 +1,9 @@
-# Update DTC to latest git and apply DT overlay patch
+# Update DTC to use Pantelis Antoniou's (@pantoniou) DT overlay patch
 
-FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
+SRC_URI_remove = "git://git.kernel.org/pub/scm/utils/dtc/dtc.git"
 
-SRCREV = "65cc4d2748a2c2e6f27f1cf39e07a5dbabd80ebf"
+SRC_URI += "git://github.com/pantoniou/dtc.git;branch=dt-overlays8"
 
-SRC_URI += "file://0001-dtc-Dynamic-symbols-fixup-support.patch"
+SRCREV = "f7da040f2bed614fd55a4901d71fafb916863e8a"
 
+PV = "1.4.1+git${SRCPV}"
