@@ -6,7 +6,6 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/LICENSE;md5=4d92cd373abda3937c2bc47fbc49d
 COMPATIBLE_MACHINE = "(beaglebone)"
 
 PV = "1.0+git${SRCPV}"
-PR = "r1"
 
 DEPENDS_${PN} = "dtc"
 
