@@ -9,16 +9,10 @@ FILESPATH =. "${FILE_DIRNAME}/linux-beagleboard-4.1:${FILE_DIRNAME}/linux-beagle
 
 S = "${WORKDIR}/git"
 
-PV = "4.1.15"
+PV = "4.1.27"
 
 SRC_URI = "git://github.com/beagleboard/linux.git;branch=4.1;nobranch=1"
-SRCREV_pn-${PN} = "dd387851fb2923733ba15708dc8d812e71533a80"
-
-do_configure_prepend() {
-	if [ -e ${WORKDIR}/am335x-pm-firmware.bin ] ; then
-		cp ${WORKDIR}/am335x-pm-firmware.bin ${S}/firmware
-	fi
-}
+SRCREV_pn-${PN} = "2bd2ea734c6c7ff14e6fbf6cad2a801432dbff83"
 
 SRC_URI += " \
         file://0001-mt7601u-fix-dma-from-stack-address.patch \
@@ -32,7 +26,6 @@ SRC_URI += " \
 KERNEL_DEVICETREE = "am335x-bone.dtb am335x-boneblack.dtb am335x-bonegreen.dtb"
 
 KERNEL_CC_append = " -fuse-ld=bfd"
-
 
 PACKAGES =+ "kernel-dbg"
 FILES_kernel-dbg += "/usr/src/kernel/firmware/.debug/"
