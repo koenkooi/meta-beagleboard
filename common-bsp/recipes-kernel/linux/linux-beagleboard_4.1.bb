@@ -9,10 +9,10 @@ FILESPATH =. "${FILE_DIRNAME}/linux-beagleboard-4.1:${FILE_DIRNAME}/linux-beagle
 
 S = "${WORKDIR}/git"
 
-PV = "4.1.27"
+PV = "4.1.30"
 
 SRC_URI = "git://github.com/beagleboard/linux.git;branch=4.1;nobranch=1"
-SRCREV_pn-${PN} = "2bd2ea734c6c7ff14e6fbf6cad2a801432dbff83"
+SRCREV_pn-${PN} = "bb1136e4c931dd48aa5671bbeb8c945fefdd6bc2"
 
 SRC_URI += " \
         file://0001-mt7601u-fix-dma-from-stack-address.patch \
