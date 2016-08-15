@@ -10,7 +10,7 @@ PV = "1.0+git${SRCPV}"
 DEPENDS = "dtc-native"
 
 SRC_URI = "git://github.com/beagleboard/bb.org-overlays.git;branch=master;nobranch=1"
-SRCREV_pn-${PN} = "25cf610eda61a323048bd46a458fe8bf6d1c6af5"
+SRCREV_pn-${PN} = "c34e3ee970befc511c57e7a42791e588e029b226"
 
 S = "${WORKDIR}/git"
 
