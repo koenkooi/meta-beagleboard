@@ -17,6 +17,7 @@ SRC_URI = "git://git.denx.de/u-boot.git \
            file://2013.10/0001-am335x-mux-don-t-hang-on-unknown-EEPROMs-assume-Beag.patch \
            file://2013.10/0003-beaglebone-HACK-raise-USB-current-limit.patch \
            file://2014.01/0002-beaglebone-HACK-always-return-1-for-is_bone_lt.patch \
+           file://2016.01/0001-compiler-.h-sync-include-linux-compiler-.h-with-Linu.patch \
            ${FWENV} \
           "
 
