@@ -6,7 +6,7 @@ Introduction
 
 The official OpenEmbedded/Yocto BSP layer for Beagleboard.org platforms.
 
-It is hosted on https://github.com/beagleboard/meta-beagleboard with the source repository at git://github.com/beagleboard/meta-beagleboard.git
+It is hosted on https://github.com/beagleboard/meta-beagleboard with the source repository at https://github.com/beagleboard/meta-beagleboard.git
 
 The common-bsp layer depends on:
 
@@ -14,10 +14,8 @@ The common-bsp layer depends on:
 	layers: meta
 	branch: master
 
-And for machine_kernel_pr.bbclass:
-
-	URI: git://git.openembedded.org/meta-openembedded
-	layers: meta-oe
+	URI: https://git.yoctoproject.org/git/meta-ti
+	layers: meta-ti
 	branch: master
 
 The meta-beagleboard-extras layer depends on:
@@ -36,14 +34,11 @@ Please follow the recommended setup procedures of your OE distribution. For Angs
 Contributing
 -------------------------
 
-The beagleboard mailinglist (beagleboard@googlegroups.com) is used for questions, comments and patch review. It is subscriber only, so please register before posting.
-
 Please use github for pull requests: https://github.com/beagleboard/meta-beagleboard/pulls
 
 Reporting bugs
 -------------------------
 
-The github issue tracker (https://github.com/beagleboard/meta-beagleboard/issues) is being used to keep track of bugs, but it recommended ask on the mailinglist (beagleboard@googlegroups.com) first.
+The github issue tracker (https://github.com/beagleboard/meta-beagleboard/issues) is being used to keep track of bugs.
 
 Maintainers: Koen Kooi <koen@beagleboard.org>
-             Jason Kridner <jkridner@beagleboard.org>
