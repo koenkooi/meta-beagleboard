@@ -6,6 +6,8 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=d7810fab7487fb0aad327b76f1be7cd7"
 
 inherit kernel siteinfo
 
+DEPENDS += "lz4-native"
+
 # Specify the commandline for your device
 
 # Set the verbosity of kernel messages during runtime
@@ -18,16 +20,6 @@ CMDLINE_append = " ${CMDLINE_DEBUG} "
 LOGO_SIZE ?= "."
 
 ALLOW_EMPTY_kernel-devicetree = "1"
-
-python __anonymous () {
-
-    import bb
-    
-    devicetree = bb.data.getVar('KERNEL_DEVICETREE', d, 1) or ''
-    if devicetree:
-    	depends = bb.data.getVar("DEPENDS", d, 1)
-    	bb.data.setVar("DEPENDS", "%s dtc-native" % depends, d)
-}
 
 do_configure_prepend() {
 
@@ -200,9 +192,8 @@ EXTRA_OEMAKE = "${PARALLEL_MAKE} "
 
 do_install_append() {
 	oe_runmake headers_install INSTALL_HDR_PATH=${D}${exec_prefix}/src/linux-${KERNEL_VERSION} ARCH=$ARCH
-	oe_runmake firmware_install INSTALL_MOD_PATH=${D} ARCH=$ARCH
 	install -d ${D}/boot
-	oe_runmake -C ${S} O=${B} ARCH=$ARCH dtbs || true
+	make -C ${S} O=${B} ARCH=$ARCH dtbs || true
 	install -m 0644 ${B}/arch/$ARCH/boot/dts/*.dtb ${D}/boot || true
 
 	install -d ${D}/lib/firmware
@@ -213,8 +204,6 @@ do_install_append() {
 
 PACKAGES =+ "kernel-headers"
 FILES_kernel-headers = "${exec_prefix}/src/linux*"
-
-require recipes-kernel/linux/linux-dtb.inc
 
 PACKAGES =+ "kernel-devicetree-overlays"
 FILES_kernel-devicetree-overlays = "/lib/firmware/*.dtbo /lib/firmware/*.dts"
