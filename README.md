@@ -6,7 +6,7 @@ Introduction
 
 The official OpenEmbedded/Yocto BSP layer for Beagleboard.org platforms.
 
-It is hosted on https://github.com/beagleboard/meta-beagleboard with the source repository at https://github.com/beagleboard/meta-beagleboard.git
+It is hosted on https://github.com/koenkooi/meta-beagleboard with the source repository at https://github.com/koenkooi/meta-beagleboard.git
 
 The common-bsp layer depends on:
 
@@ -34,11 +34,11 @@ Please follow the recommended setup procedures of your OE distribution. For Angs
 Contributing
 -------------------------
 
-Please use github for pull requests: https://github.com/beagleboard/meta-beagleboard/pulls
+Please use github for pull requests: https://github.com/koenkooi/meta-beagleboard/pulls
 
 Reporting bugs
 -------------------------
 
-The github issue tracker (https://github.com/beagleboard/meta-beagleboard/issues) is being used to keep track of bugs.
+The github issue tracker (https://github.com/koenkooi/meta-beagleboard/issues) is being used to keep track of bugs.
 
 Maintainers: Koen Kooi <koen@beagleboard.org>
