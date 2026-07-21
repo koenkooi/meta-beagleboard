@@ -1,0 +1,38 @@
+From c56a8b8f1dde4b5b440436721a4fa993042e8725 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Mon, 6 Jul 2026 10:07:43 +0200
+Subject: [PATCH] iio: light: vcnl4000: initialize ps_scale for
+ vcnl4000/vcnl4010
+
+For vcnl4000/vcnl4010, proximity raw reads return IIO_VAL_FRACTIONAL
+but vcnl4000_init() leaves ps_scale uninitialized.
+
+Reading the proximity sysfs attribute can then hit a zero denominator in
+__iio_format_value(), causing repeated "Division by zero in kernel"
+reports while userspace reads the channel.
+
+Initialize ps_scale to 1 in vcnl4000_init() so fractional formatting
+always has a valid denominator for these parts.
+
+Fixes: 44b90383453c ("iio: light: vcnl4000: Set ps high definition for 4040/4200")
+Signed-off-by: Koen Kooi <koen@dominion.thruhere.net>
+Assisted-by: GitHub Copilot:GPT-5.3-Codex
+---
+ drivers/iio/light/vcnl4000.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/iio/light/vcnl4000.c b/drivers/iio/light/vcnl4000.c
+index 128ae3f94074..70b9111f74a4 100644
+--- a/drivers/iio/light/vcnl4000.c
++++ b/drivers/iio/light/vcnl4000.c
+@@ -261,6 +261,7 @@ static int vcnl4000_init(struct vcnl4000_data *data)
+ 
+ 	data->rev = ret & 0xf;
+ 	data->al_scale = 250000;
++	data->ps_scale = 1;
+ 
+ 	return 0;
+ };
+-- 
+2.51.0
+

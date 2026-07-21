@@ -1,0 +1,110 @@
+From 14421188b8f538b7a0ea6511294d6fe3645893c2 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Mon, 6 Jul 2026 10:30:28 +0200
+Subject: [PATCH 3/4] drm/ssd130x: Add support for SINO WEALTH SH1107
+
+Add SH1107 support to the DRM SSD130x driver family by wiring in\ncontroller data and probe matching for both I2C and SPI transports.\n\nSH1107 uses page addressing, but unlike SH1106 it needs a 4-bit page\nindex to cover 128 rows (16 pages). Handle page-position programming\naccordingly and default page offset to 0 for this controller.\n\nAssisted-by: GitHub Copilot:GPT-5.3-Codex
+---
+ drivers/gpu/drm/solomon/ssd130x-i2c.c |  4 ++++
+ drivers/gpu/drm/solomon/ssd130x-spi.c |  5 +++++
+ drivers/gpu/drm/solomon/ssd130x.c     | 19 ++++++++++++++++---
+ drivers/gpu/drm/solomon/ssd130x.h     |  1 +
+ 4 files changed, 26 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/solomon/ssd130x-i2c.c b/drivers/gpu/drm/solomon/ssd130x-i2c.c
+index 941a2eb44c57..c3cfd5488fab 100644
+--- a/drivers/gpu/drm/solomon/ssd130x-i2c.c
++++ b/drivers/gpu/drm/solomon/ssd130x-i2c.c
+@@ -59,6 +59,10 @@ static const struct of_device_id ssd130x_of_match[] = {
+ 		.compatible = "sinowealth,sh1106",
+ 		.data = &ssd130x_variants[SH1106_ID],
+ 	},
++	{
++		.compatible = "sinowealth,sh1107",
++		.data = &ssd130x_variants[SH1107_ID],
++	},
+ 	{
+ 		.compatible = "solomon,ssd1305",
+ 		.data = &ssd130x_variants[SSD1305_ID],
+diff --git a/drivers/gpu/drm/solomon/ssd130x-spi.c b/drivers/gpu/drm/solomon/ssd130x-spi.c
+index b52f5fd592a1..417c92e04b22 100644
+--- a/drivers/gpu/drm/solomon/ssd130x-spi.c
++++ b/drivers/gpu/drm/solomon/ssd130x-spi.c
+@@ -112,6 +112,10 @@ static const struct of_device_id ssd130x_of_match[] = {
+ 		.compatible = "sinowealth,sh1106",
+ 		.data = &ssd130x_variants[SH1106_ID],
+ 	},
++	{
++		.compatible = "sinowealth,sh1107",
++		.data = &ssd130x_variants[SH1107_ID],
++	},
+ 	{
+ 		.compatible = "solomon,ssd1305",
+ 		.data = &ssd130x_variants[SSD1305_ID],
+@@ -161,6 +165,7 @@ MODULE_DEVICE_TABLE(of, ssd130x_of_match);
+ static const struct spi_device_id ssd130x_spi_id[] = {
+ 	/* ssd130x family */
+ 	{ "sh1106",  SH1106_ID },
++	{ "sh1107",  SH1107_ID },
+ 	{ "ssd1305", SSD1305_ID },
+ 	{ "ssd1306", SSD1306_ID },
+ 	{ "ssd1307", SSD1307_ID },
+diff --git a/drivers/gpu/drm/solomon/ssd130x.c b/drivers/gpu/drm/solomon/ssd130x.c
+index c77455b1834d..b48ac46e6abf 100644
+--- a/drivers/gpu/drm/solomon/ssd130x.c
++++ b/drivers/gpu/drm/solomon/ssd130x.c
+@@ -152,6 +152,15 @@ const struct ssd130x_deviceinfo ssd130x_variants[] = {
+ 		.page_mode_only = 1,
+ 		.family_id = SSD130X_FAMILY,
+ 	},
++	[SH1107_ID] = {
++		.default_vcomh = 0x35,
++		.default_dclk_div = 2,
++		.default_dclk_frq = 5,
++		.default_width = 128,
++		.default_height = 128,
++		.page_mode_only = 1,
++		.family_id = SSD130X_FAMILY,
++	},
+ 	[SSD1305_ID] = {
+ 		.default_vcomh = 0x34,
+ 		.default_dclk_div = 1,
+@@ -320,8 +329,11 @@ static int ssd130x_set_page_pos(struct ssd130x_device *ssd130x,
+ 	int ret;
+ 	u32 page, col_low, col_high;
+ 
+-	page = SSD130X_START_PAGE_ADDRESS |
+-	       SSD130X_START_PAGE_ADDRESS_SET(page_start);
++	if (ssd130x->device_info == &ssd130x_variants[SH1107_ID])
++		page = SSD130X_START_PAGE_ADDRESS | (page_start & GENMASK(3, 0));
++	else
++		page = SSD130X_START_PAGE_ADDRESS |
++		       SSD130X_START_PAGE_ADDRESS_SET(page_start);
+ 	col_low = SSD130X_PAGE_COL_START_LOW |
+ 		  SSD130X_PAGE_COL_START_LOW_SET(col_start);
+ 	col_high = SSD130X_PAGE_COL_START_HIGH |
+@@ -1804,7 +1816,8 @@ static void ssd130x_parse_properties(struct ssd130x_device *ssd130x)
+ 		ssd130x->height = ssd130x->device_info->default_height;
+ 
+ 	if (device_property_read_u32(dev, "solomon,page-offset", &ssd130x->page_offset))
+-		ssd130x->page_offset = 1;
++		ssd130x->page_offset =
++			ssd130x->device_info == &ssd130x_variants[SH1107_ID] ? 0 : 1;
+ 
+ 	if (device_property_read_u32(dev, "solomon,col-offset", &ssd130x->col_offset))
+ 		ssd130x->col_offset = 0;
+diff --git a/drivers/gpu/drm/solomon/ssd130x.h b/drivers/gpu/drm/solomon/ssd130x.h
+index a4554018bb2a..02240caf2bb6 100644
+--- a/drivers/gpu/drm/solomon/ssd130x.h
++++ b/drivers/gpu/drm/solomon/ssd130x.h
+@@ -32,6 +32,7 @@ enum ssd130x_family_ids {
+ enum ssd130x_variants {
+ 	/* ssd130x family */
+ 	SH1106_ID,
++	SH1107_ID,
+ 	SSD1305_ID,
+ 	SSD1306_ID,
+ 	SSD1307_ID,
+-- 
+2.47.3
+
