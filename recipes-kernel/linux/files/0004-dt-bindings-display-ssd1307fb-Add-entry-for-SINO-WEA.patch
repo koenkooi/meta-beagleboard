@@ -1,0 +1,51 @@
+From 89fcd8c40a24a1e3380f8aaff9dcd69df247fa9f Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Mon, 6 Jul 2026 10:30:29 +0200
+Subject: [PATCH 4/4] dt-bindings: display: ssd1307fb: Add entry for SINO
+ WEALTH SH1107
+
+Document sinowealth,sh1107 in the ssd1307fb binding and add\ncontroller-specific defaults for width, height, page offset, and\ndisplay clock settings.\n\nAssisted-by: GitHub Copilot:GPT-5.3-Codex
+---
+ .../bindings/display/solomon,ssd1307fb.yaml   | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/display/solomon,ssd1307fb.yaml b/Documentation/devicetree/bindings/display/solomon,ssd1307fb.yaml
+index 153ff86fb405..e048815753cd 100644
+--- a/Documentation/devicetree/bindings/display/solomon,ssd1307fb.yaml
++++ b/Documentation/devicetree/bindings/display/solomon,ssd1307fb.yaml
+@@ -22,6 +22,7 @@ properties:
+         deprecated: true
+       - enum:
+           - sinowealth,sh1106
++          - sinowealth,sh1107
+           - solomon,ssd1305
+           - solomon,ssd1306
+           - solomon,ssd1307
+@@ -140,6 +141,24 @@ allOf:
+         solomon,dclk-frq:
+           default: 5
+ 
++  - if:
++      properties:
++        compatible:
++          contains:
++            const: sinowealth,sh1107
++    then:
++      properties:
++        solomon,width:
++          default: 128
++        solomon,height:
++          default: 128
++        solomon,page-offset:
++          default: 0
++        solomon,dclk-div:
++          default: 2
++        solomon,dclk-frq:
++          default: 5
++
+   - if:
+       properties:
+         compatible:
+-- 
+2.47.3
+
