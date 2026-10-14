@@ -23,6 +23,7 @@ SRC_URI:append = " file://makeitwork.cfg \
                  "
 
 SRC_URI:append:beagleboard-xm = " file://0005-ARM-dts-omap3-beagle-xm-add-CircuitCo-BBToys-uLCD7-.patch \
+                                  file://0008-ARM-dts-omap3-beagle-xm-add-BeagleBoardToys-WiFi-ove.patch \
                                   file://beagleboard-xm.cfg \
                                 "
 

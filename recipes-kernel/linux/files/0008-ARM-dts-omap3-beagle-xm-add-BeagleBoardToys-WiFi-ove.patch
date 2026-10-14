@@ -1,0 +1,146 @@
+From c09b6b85bc7ab18093266e55bc050af6f0f8331b Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Wed, 14 Oct 2026 09:29:36 +0200
+Subject: [PATCH] ARM: dts: omap3-beagle-xm: add BeagleBoardToys WiFi overlay
+
+The BBToys WiFi adapter (BBT-WLAN-002, an LS Research TiWi-R2 around a TI
+WL1271) plugs into the BeagleBoard-xM expansion header: SDIO on MMC2, UART2
+for Bluetooth, and WLAN_EN, WLAN_IRQ and BT_EN on three of the spare MMC2
+data pads used as GPIOs. Until now it was only supported by an out-of-tree
+board-file patch selected with buddy=bbtoys-wifi.
+
+Describe it as an overlay and build it into omap3-beagle-xm-bbtoys-wifi.dtb,
+and together with the uLCD7 overlay into omap3-beagle-xm-ulcd7-bbtoys-wifi.dtb
+for the stacked case. The 38.4 MHz reference clock and the GPIO roles are
+those of the old board-file code. Not tested on hardware.
+---
+ arch/arm/boot/dts/ti/omap/Makefile            |  6 +-
+ .../ti/omap/omap3-beagle-xm-bbtoys-wifi.dtso  | 98 +++++++++++++++++++
+ 2 files changed, 103 insertions(+), 1 deletion(-)
+ create mode 100644 arch/arm/boot/dts/ti/omap/omap3-beagle-xm-bbtoys-wifi.dtso
+
+diff --git a/arch/arm/boot/dts/ti/omap/Makefile b/arch/arm/boot/dts/ti/omap/Makefile
+index 2514710..fefadb7 100644
+--- a/arch/arm/boot/dts/ti/omap/Makefile
++++ b/arch/arm/boot/dts/ti/omap/Makefile
+@@ -69,8 +69,12 @@ dtb-$(CONFIG_ARCH_OMAP3) += \
+ 	omap3-zoom3.dtb
+ 
+ omap3-beagle-xm-ulcd7-dtbs := omap3-beagle-xm.dtb omap3-beagle-xm-ulcd7.dtbo
++omap3-beagle-xm-bbtoys-wifi-dtbs := omap3-beagle-xm.dtb omap3-beagle-xm-bbtoys-wifi.dtbo
++omap3-beagle-xm-ulcd7-bbtoys-wifi-dtbs := omap3-beagle-xm.dtb omap3-beagle-xm-ulcd7.dtbo \
++	omap3-beagle-xm-bbtoys-wifi.dtbo
+ 
+-dtb-$(CONFIG_ARCH_OMAP3) += omap3-beagle-xm-ulcd7.dtb
++dtb-$(CONFIG_ARCH_OMAP3) += omap3-beagle-xm-ulcd7.dtb omap3-beagle-xm-bbtoys-wifi.dtb \
++	omap3-beagle-xm-ulcd7-bbtoys-wifi.dtb
+ 
+ dtb-$(CONFIG_ARCH_OMAP4) += \
+ 	omap4-droid-bionic-xt875.dtb \
+diff --git a/arch/arm/boot/dts/ti/omap/omap3-beagle-xm-bbtoys-wifi.dtso b/arch/arm/boot/dts/ti/omap/omap3-beagle-xm-bbtoys-wifi.dtso
+new file mode 100644
+index 0000000..6cf2bfa
+--- /dev/null
++++ b/arch/arm/boot/dts/ti/omap/omap3-beagle-xm-bbtoys-wifi.dtso
+@@ -0,0 +1,98 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * BeagleBoardToys WiFi/Bluetooth adapter (BBT-WLAN-002, an LS Research TiWi-R2
++ * module around a TI WL1271) on the BeagleBoard-xM expansion header.
++ *
++ * Replaces the legacy buddy=bbtoys-wifi board-file code. Header signals, from
++ * the xM SRM table 22: MMC2_CLK/CMD/DAT0-3 on pins 21/19/17/15/13/11, the four
++ * spare MMC2 data pads as GPIO136-139 on pins 9/7/5/3, and UART2 on pins
++ * 4 (CTS), 6 (TX), 8 (RX, which is the McBSP3_FSX pad in mux mode 1) and 10 (RTS).
++ * The GPIO roles, the 38.4 MHz reference clock and the 70 ms power-up delay are
++ * those of the old board-file code. There are no design files for this board.
++ * Untested on hardware.
++ */
++
++/dts-v1/;
++/plugin/;
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/interrupt-controller/irq.h>
++#include <dt-bindings/pinctrl/omap.h>
++
++&omap3_pmx_core {
++	bbtoys_wifi_mmc2_pins: bbtoys-wifi-mmc2-pins {
++		pinctrl-single,pins = <
++			OMAP3_CORE1_IOPAD(0x2158, PIN_INPUT_PULLUP | MUX_MODE0)	/* sdmmc2_clk.sdmmc2_clk */
++			OMAP3_CORE1_IOPAD(0x215a, PIN_INPUT_PULLUP | MUX_MODE0)	/* sdmmc2_cmd.sdmmc2_cmd */
++			OMAP3_CORE1_IOPAD(0x215c, PIN_INPUT_PULLUP | MUX_MODE0)	/* sdmmc2_dat0.sdmmc2_dat0 */
++			OMAP3_CORE1_IOPAD(0x215e, PIN_INPUT_PULLUP | MUX_MODE0)	/* sdmmc2_dat1.sdmmc2_dat1 */
++			OMAP3_CORE1_IOPAD(0x2160, PIN_INPUT_PULLUP | MUX_MODE0)	/* sdmmc2_dat2.sdmmc2_dat2 */
++			OMAP3_CORE1_IOPAD(0x2162, PIN_INPUT_PULLUP | MUX_MODE0)	/* sdmmc2_dat3.sdmmc2_dat3 */
++		>;
++	};
++
++	bbtoys_wifi_gpio_pins: bbtoys-wifi-gpio-pins {
++		pinctrl-single,pins = <
++			OMAP3_CORE1_IOPAD(0x2164, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* sdmmc2_dat4.gpio_136, FM_EN / BT_WU */
++			OMAP3_CORE1_IOPAD(0x2166, PIN_INPUT_PULLUP | MUX_MODE4)		/* sdmmc2_dat5.gpio_137, WLAN_IRQ */
++			OMAP3_CORE1_IOPAD(0x2168, PIN_OUTPUT | MUX_MODE4)		/* sdmmc2_dat6.gpio_138, BT_EN */
++			OMAP3_CORE1_IOPAD(0x216a, PIN_OUTPUT | MUX_MODE4)		/* sdmmc2_dat7.gpio_139, WLAN_EN */
++		>;
++	};
++
++	bbtoys_wifi_uart2_pins: bbtoys-wifi-uart2-pins {
++		pinctrl-single,pins = <
++			OMAP3_CORE1_IOPAD(0x2174, PIN_INPUT_PULLUP | MUX_MODE0)	/* uart2_cts.uart2_cts */
++			OMAP3_CORE1_IOPAD(0x2176, PIN_OUTPUT | MUX_MODE0)	/* uart2_rts.uart2_rts */
++			OMAP3_CORE1_IOPAD(0x2178, PIN_OUTPUT | MUX_MODE0)	/* uart2_tx.uart2_tx */
++			OMAP3_CORE1_IOPAD(0x2172, PIN_INPUT | MUX_MODE1)	/* mcbsp3_fsx.uart2_rx */
++		>;
++	};
++};
++
++&{/} {
++	/* WLAN_EN powers the module's 1.8 V rail through the header */
++	bbtoys_wifi_vmmc: regulator-bbtoys-wifi {
++		compatible = "regulator-fixed";
++		regulator-name = "vwl1271";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		gpio = <&gpio5 11 GPIO_ACTIVE_HIGH>;	/* gpio_139 */
++		startup-delay-us = <70000>;
++		enable-active-high;
++		pinctrl-names = "default";
++		pinctrl-0 = <&bbtoys_wifi_gpio_pins>;
++	};
++};
++
++&mmc2 {
++	status = "okay";
++	pinctrl-names = "default";
++	pinctrl-0 = <&bbtoys_wifi_mmc2_pins>;
++	vmmc-supply = <&bbtoys_wifi_vmmc>;
++	bus-width = <4>;
++	non-removable;
++	cap-power-off-card;
++
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	wlcore@2 {
++		compatible = "ti,wl1271";
++		reg = <2>;
++		interrupts-extended = <&gpio5 9 IRQ_TYPE_EDGE_RISING>;	/* gpio_137 */
++		/* the TiWi-R2 module has its own 38.4 MHz clock, not a crystal on the host side */
++		ref-clock-frequency = <38400000>;
++	};
++};
++
++&uart2 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&bbtoys_wifi_uart2_pins>;
++
++	bluetooth {
++		compatible = "ti,wl1271-st";
++		enable-gpios = <&gpio5 10 GPIO_ACTIVE_HIGH>;	/* gpio_138 */
++		max-speed = <3000000>;
++	};
++};
+-- 
+2.51.0
+
