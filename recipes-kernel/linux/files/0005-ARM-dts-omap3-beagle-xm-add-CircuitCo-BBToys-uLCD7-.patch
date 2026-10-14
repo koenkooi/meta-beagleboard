@@ -1,0 +1,236 @@
+From 18422c9001dc25a2a4d8d1235a2f8010edd4b9a0 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Tue, 13 Oct 2026 18:23:33 +0200
+Subject: [PATCH] ARM: dts: omap3-beagle-xm: add CircuitCo/BBToys uLCD7 overlay
+
+The uLCD7 (ULCD7 Lite) plugs into the BeagleBoard-xM LCD and expansion
+headers: an 800x480 DPI panel, a TSC2007 resistive touch controller and a
+TLC59108 that switches the panel supplies and the backlight. Until now it
+was only supported by an out-of-tree board-file patch selected with
+buddy2=bbtoys-ulcd.
+
+Describe it as an overlay that is merged into omap3-beagle-xm-ulcd7.dtb at
+build time, for the beagleboard-xm machine only. The base DTB gets -@ so
+the overlay can also be applied at runtime from the bootloader.
+
+The I2C devices, the GPIO 156 supply enable and the TLC59108 field
+encoding follow the ULCD7 Lite SRM (github.com/CircuitCo/ULCD7-Lite). The
+panel timings come from the old board-file code, as neither the SRM nor
+the panel vendor gives any. The SRM contradicts itself on UPDN, DITH and
+SHLR, so the overlay keeps the values the old board file wrote. The
+panel, its supply and the backlight work on hardware (kernel console on the
+screen); the touch controller needed its own pin group.
+---
+ arch/arm/boot/dts/ti/omap/Makefile            |   6 +
+ .../dts/ti/omap/omap3-beagle-xm-ulcd7.dtso    | 178 ++++++++++++++++++
+ 2 files changed, 184 insertions(+)
+ create mode 100644 arch/arm/boot/dts/ti/omap/omap3-beagle-xm-ulcd7.dtso
+
+diff --git a/arch/arm/boot/dts/ti/omap/Makefile b/arch/arm/boot/dts/ti/omap/Makefile
+index 3a4d920..2514710 100644
+--- a/arch/arm/boot/dts/ti/omap/Makefile
++++ b/arch/arm/boot/dts/ti/omap/Makefile
+@@ -67,6 +67,11 @@ dtb-$(CONFIG_ARCH_OMAP3) += \
+ 	omap3-sniper.dtb \
+ 	omap3-thunder.dtb \
+ 	omap3-zoom3.dtb
++
++omap3-beagle-xm-ulcd7-dtbs := omap3-beagle-xm.dtb omap3-beagle-xm-ulcd7.dtbo
++
++dtb-$(CONFIG_ARCH_OMAP3) += omap3-beagle-xm-ulcd7.dtb
++
+ dtb-$(CONFIG_ARCH_OMAP4) += \
+ 	omap4-droid-bionic-xt875.dtb \
+ 	omap4-droid4-xt894.dtb \
+@@ -189,3 +194,4 @@ DTC_FLAGS_am335x-boneblack-wireless += -@
+ DTC_FLAGS_am335x-bonegreen += -@
+ DTC_FLAGS_am335x-bonegreen-wireless += -@
+ DTC_FLAGS_am335x-bonegreen-eco += -@
++DTC_FLAGS_omap3-beagle-xm += -@
+diff --git a/arch/arm/boot/dts/ti/omap/omap3-beagle-xm-ulcd7.dtso b/arch/arm/boot/dts/ti/omap/omap3-beagle-xm-ulcd7.dtso
+new file mode 100644
+index 0000000..42630c9
+--- /dev/null
++++ b/arch/arm/boot/dts/ti/omap/omap3-beagle-xm-ulcd7.dtso
+@@ -0,0 +1,178 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * CircuitCo/BBToys uLCD7 (ULCD7 Lite) on the BeagleBoard-xM LCD and expansion
++ * headers: 7" 800x480 TFC S9700RTWV35TR panel, 4-wire resistive touch (TSC2007)
++ * and a TLC59108 that switches the panel supplies and the backlight.
++ *
++ * Replaces the legacy buddy2=bbtoys-ulcd board-file code. The panel timings
++ * come from that code, as the ULCD7 Lite SRM and the panel's vendor give none.
++ * GPIO 156 and the I2C devices are in the SRM (rev A). Untested on hardware.
++ *
++ * The TLC59108 pins are driven through the LED class driver, whose brightness
++ * 0 is LEDOUT 00 (high-Z, pulled up) and 255 is LEDOUT 01 (sinks to ground).
++ * The SRM calls LEDOUT 00 "on" for the supply and backlight enables and
++ * "normal" for STBYB, so those three are left at brightness 0.
++ */
++
++/dts-v1/;
++/plugin/;
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/interrupt-controller/irq.h>
++#include <dt-bindings/pinctrl/omap.h>
++
++/*
++ * The DPI output feeds either the tfp410 DVI encoder or this panel, never both,
++ * so the DVI path is switched off.
++ */
++&tfp410 {
++	status = "disabled";
++};
++
++&dvi0 {
++	status = "disabled";
++};
++
++&dpi_out {
++	remote-endpoint = <&panel_in>;
++};
++
++&omap3_pmx_core {
++	/*
++	 * One group per consumer: a pin that is part of a group the regulator
++	 * has already applied can't be claimed again by the touch controller.
++	 */
++	ulcd7_vcc_pins: ulcd7-vcc-pins {
++		pinctrl-single,pins = <
++			OMAP3_CORE1_IOPAD(0x218c, PIN_OUTPUT | MUX_MODE4)	/* mcbsp1_clkr.gpio_156, nMAS_PWER_EN */
++		>;
++	};
++
++	ulcd7_touch_pins: ulcd7-touch-pins {
++		pinctrl-single,pins = <
++			OMAP3_CORE1_IOPAD(0x218e, PIN_INPUT_PULLUP | MUX_MODE4)	/* mcbsp1_fsr.gpio_157, TS_nPEN_IRQ */
++		>;
++	};
++};
++
++&{/} {
++	/* nMAS_PWER_EN is active low and enables the supply of the whole uLCD7 */
++	ulcd7_vcc: regulator-ulcd7 {
++		compatible = "regulator-fixed";
++		regulator-name = "ulcd7-vcc";
++		regulator-min-microvolt = <5000000>;
++		regulator-max-microvolt = <5000000>;
++		gpio = <&gpio5 28 GPIO_ACTIVE_LOW>;	/* gpio_156 */
++		pinctrl-names = "default";
++		pinctrl-0 = <&ulcd7_vcc_pins>;
++	};
++
++	/*
++	 * LED brightness 0 is full on and 255 is off, the SRM's PWM mode (LEDOUT
++	 * 10) with PWM2 = 0 or 0xff, so the level table runs backwards. Blanking
++	 * writes brightness 0, which therefore does not switch the backlight off.
++	 */
++	ulcd7_backlight: backlight {
++		compatible = "led-backlight";
++		leds = <&ulcd7_led_bl>;
++		brightness-levels = <255 224 192 160 128 96 64 32 0>;
++		default-brightness-level = <7>;
++	};
++
++	panel {
++		compatible = "tfc,s9700rtwv35tr-01", "panel-dpi";
++		power-supply = <&ulcd7_vcc>;
++		backlight = <&ulcd7_backlight>;
++
++		panel-timing {
++			clock-frequency = <30000000>;
++			hactive = <800>;
++			hfront-porch = <41>;
++			hback-porch = <40>;
++			hsync-len = <49>;
++			vactive = <480>;
++			vfront-porch = <14>;
++			vback-porch = <29>;
++			vsync-len = <4>;
++			hsync-active = <0>;
++			vsync-active = <0>;
++			de-active = <1>;
++			pixelclk-active = <1>;
++		};
++
++		port {
++			panel_in: endpoint {
++				remote-endpoint = <&dpi_out>;
++			};
++		};
++	};
++};
++
++&i2c2 {
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	touchscreen@48 {
++		compatible = "ti,tsc2007";
++		reg = <0x48>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&ulcd7_touch_pins>;
++		interrupts-extended = <&gpio5 29 IRQ_TYPE_EDGE_FALLING>;	/* gpio_157 */
++		pendown-gpio = <&gpio5 29 GPIO_ACTIVE_LOW>;
++		ti,x-plate-ohms = <180>;
++	};
++
++	led-controller@40 {
++		compatible = "ti,tlc59108";
++		reg = <0x40>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		/* LCD_AVDD_EN: LEDOUT 00 powers the panel (TPS65105) */
++		led@1 {
++			reg = <1>;
++			label = "ulcd7:avdd-en";
++		};
++
++		ulcd7_led_bl: led@2 {
++			reg = <2>;
++			label = "ulcd7:backlight";
++		};
++
++		/* STBYB: LEDOUT 00 is normal operation */
++		led@3 {
++			reg = <3>;
++			label = "ulcd7:stbyb";
++		};
++
++		/*
++		 * UPDN, DITH and MODE3 are set to LEDOUT 01 and SHLR to 00, which
++		 * is the SRM table 4 initial value and what the old board file
++		 * wrote (LEDOUT1 = 0x15). The SRM text disagrees for UPDN (down),
++		 * DITH (off) and SHLR (right), and MODE3 01 is DE mode in both.
++		 */
++		led@4 {
++			reg = <4>;
++			label = "ulcd7:updn";
++			linux,default-trigger = "default-on";
++		};
++
++		led@5 {
++			reg = <5>;
++			label = "ulcd7:dith";
++			linux,default-trigger = "default-on";
++		};
++
++		led@6 {
++			reg = <6>;
++			label = "ulcd7:mode3";
++			linux,default-trigger = "default-on";
++		};
++
++		/* SHLR */
++		led@7 {
++			reg = <7>;
++			label = "ulcd7:shlr";
++		};
++	};
++};
+-- 
+2.51.0
+

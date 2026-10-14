@@ -22,6 +22,10 @@ SRC_URI:append = " file://makeitwork.cfg \
                    file://0004-dt-bindings-display-ssd1307fb-Add-entry-for-SINO-WEA.patch \
                  "
 
+SRC_URI:append:beagleboard-xm = " file://0005-ARM-dts-omap3-beagle-xm-add-CircuitCo-BBToys-uLCD7-.patch \
+                                  file://beagleboard-xm.cfg \
+                                "
+
 # Linux 7.2 registers the TI dual-mode timer as a clocksource and clockevent from
 # timer-ti-dm.c as well, which on OMAP3 collides with the early-boot registration in
 # timer-ti-dm-systimer.c and hangs the boot right after "Switched to clocksource
