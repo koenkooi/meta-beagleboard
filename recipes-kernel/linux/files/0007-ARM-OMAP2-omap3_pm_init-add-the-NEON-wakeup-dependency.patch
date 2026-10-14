@@ -1,0 +1,67 @@
+From c30949dc55ab7a137fc893b74130325329370df5 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Wed, 14 Oct 2026 09:19:50 +0200
+Subject: [PATCH] ARM: OMAP2+: omap3_pm_init: add the NEON wakeup dependency
+ before allowing idle
+
+omap3_pm_init() lets every clockdomain go into hardware idle with
+clkdm_for_each(omap_pm_clkdms_setup) and only adds the wakeup dependency of
+the NEON clockdomain on the MPU at the very end, after calls that can sleep
+(request_irq(), cpuidle_register(), kmalloc()). If a task switch happens in
+that window, vfp_notifier() reads FPEXC while the NEON clockdomain is asleep
+and takes an undefined instruction. vfp_support_entry() reads FPEXC as well,
+so the exception recurses until the kernel stack overflows ("Insufficient
+stack space to handle exception!", 7.2.10 on a Beagle xM, seen in three
+out of four boots, also with cpuidle.off=1).
+
+Add the dependency before the clockdomains are allowed to idle.
+
+With the dependency added first, three boots in a row on the same board were
+clean, where four of five boots without it hit the overflow. A small sample;
+the cause is understood from the code but the fix is not yet proven.
+---
+ arch/arm/mach-omap2/pm34xx.c | 14 +++++++++++---
+ 1 file changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm/mach-omap2/pm34xx.c b/arch/arm/mach-omap2/pm34xx.c
+index 9992549..10450dd 100644
+--- a/arch/arm/mach-omap2/pm34xx.c
++++ b/arch/arm/mach-omap2/pm34xx.c
+@@ -510,6 +510,17 @@ int __init omap3_pm_init(void)
+ 		goto err3;
+ 	}
+ 
++	neon_clkdm = clkdm_lookup("neon_clkdm");
++	mpu_clkdm = clkdm_lookup("mpu_clkdm");
++
++	/*
++	 * NEON can only be reached while this wakeup dependency exists. It has
++	 * to be in place before the clockdomains are allowed to idle, otherwise
++	 * a context switch that reads FPEXC while the NEON clockdomain is asleep
++	 * takes an undefined instruction, which recurses in the VFP handler.
++	 */
++	clkdm_add_wkdep(neon_clkdm, mpu_clkdm);
++
+ 	(void) clkdm_for_each(omap_pm_clkdms_setup, NULL);
+ 
+ 	mpu_pwrdm = pwrdm_lookup("mpu_pwrdm");
+@@ -523,8 +534,6 @@ int __init omap3_pm_init(void)
+ 	per_pwrdm = pwrdm_lookup("per_pwrdm");
+ 	core_pwrdm = pwrdm_lookup("core_pwrdm");
+ 
+-	neon_clkdm = clkdm_lookup("neon_clkdm");
+-	mpu_clkdm = clkdm_lookup("mpu_clkdm");
+ 	per_clkdm = clkdm_lookup("per_clkdm");
+ 	wkup_clkdm = clkdm_lookup("wkup_clkdm");
+ 
+@@ -562,7 +571,6 @@ int __init omap3_pm_init(void)
+ 	if (IS_PM34XX_ERRATUM(PM_PER_MEMORIES_ERRATUM_i582))
+ 		clkdm_add_wkdep(per_clkdm, wkup_clkdm);
+ 
+-	clkdm_add_wkdep(neon_clkdm, mpu_clkdm);
+ 	if (omap_type() != OMAP2_DEVICE_TYPE_GP) {
+ 		omap3_secure_ram_storage =
+ 			kmalloc(OMAP3_SAVE_SECURE_RAM_SZ, GFP_KERNEL);
+-- 
+2.51.0
+

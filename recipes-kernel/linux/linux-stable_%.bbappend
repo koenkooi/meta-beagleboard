@@ -29,3 +29,10 @@ SRC_URI:append = " file://makeitwork.cfg \
 # Beagle XM); drop it once the linux-stable recipe is on a release that has it. It
 # only applies to 7.2.x, so it fails loudly if the recipe moves to an older kernel.
 SRC_URI:append:omap3 = " file://0006-clocksource-drivers-timer-ti-dm-Register-clocksource-.patch"
+
+# The NEON wakeup dependency is only added at the end of omap3_pm_init(), after the
+# clockdomains were allowed to idle, so a task switch in between can read FPEXC while
+# NEON is asleep and recurse in vfp_support_entry until the stack overflows. Seen on
+# the BeagleBoard-xM in most boots right after the SWP emulation message; with this
+# patch three boots in a row were clean.
+SRC_URI:append:omap3 = " file://0007-ARM-OMAP2-omap3_pm_init-add-the-NEON-wakeup-dependency.patch"
