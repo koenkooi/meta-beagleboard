@@ -21,3 +21,11 @@ SRC_URI:append = " file://makeitwork.cfg \
                    file://0003-drm-ssd130x-Add-support-for-SINO-WEALTH-SH1107.patch \
                    file://0004-dt-bindings-display-ssd1307fb-Add-entry-for-SINO-WEA.patch \
                  "
+
+# Linux 7.2 registers the TI dual-mode timer as a clocksource and clockevent from
+# timer-ti-dm.c as well, which on OMAP3 collides with the early-boot registration in
+# timer-ti-dm-systimer.c and hangs the boot right after "Switched to clocksource
+# omap_dm_timer". This is the upstream fix (linux-next 0d3a67b1954a, Tested-by on a
+# Beagle XM); drop it once the linux-stable recipe is on a release that has it. It
+# only applies to 7.2.x, so it fails loudly if the recipe moves to an older kernel.
+SRC_URI:append:omap3 = " file://0006-clocksource-drivers-timer-ti-dm-Register-clocksource-.patch"
