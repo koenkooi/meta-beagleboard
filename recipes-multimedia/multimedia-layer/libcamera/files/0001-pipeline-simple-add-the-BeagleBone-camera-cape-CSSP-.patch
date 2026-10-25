@@ -1,0 +1,61 @@
+From b1f2a62786e08c6cbb5f2d62cba8704b011aa231 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 08:03:07 +0100
+Subject: [PATCH] pipeline: simple: add the BeagleBone camera cape CSSP bridge
+
+Add the cssp-camif media device to the supported devices of the simple
+pipeline handler, without software ISP: the MT9M114 IFP delivers
+YUV/RGB, so no Bayer processing is needed.
+
+Add sensor properties for the mt9m114 with the test pattern modes
+matching the driver's test pattern menu. The unit cell size is left out
+until the pixel pitch has been confirmed from the datasheet.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Upstream-Status: Pending
+---
+ src/libcamera/pipeline/simple/simple.cpp       |  1 +
+ .../sensor/camera_sensor_properties.cpp        | 18 ++++++++++++++++++
+ 2 files changed, 19 insertions(+)
+
+diff --git a/src/libcamera/pipeline/simple/simple.cpp b/src/libcamera/pipeline/simple/simple.cpp
+index 35c29ce..2c9efcf 100644
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -256,6 +256,7 @@ struct SimplePipelineInfo {
+ namespace {
+ 
+ static const SimplePipelineInfo supportedDevices[] = {
++	{ "cssp-camif", {}, false },
+ 	{ "dcmipp", {}, false },
+ 	{ "imx7-csi", { { "pxp", 1 } }, true },
+ 	{ "intel-ipu6", {}, true },
+diff --git a/src/libcamera/sensor/camera_sensor_properties.cpp b/src/libcamera/sensor/camera_sensor_properties.cpp
+index 20cfd0b..326f1e1 100644
+--- a/src/libcamera/sensor/camera_sensor_properties.cpp
++++ b/src/libcamera/sensor/camera_sensor_properties.cpp
+@@ -440,6 +440,24 @@ const CameraSensorProperties *CameraSensorProperties::get(const std::string &sen
+ 			},
+ 			.sensorDelays = { },
+ 		} },
++		{ "mt9m114", {
++			/*
++			 * The test pattern control is exposed on the IFP
++			 * subdev, which is the sensor subdev used by libcamera.
++			 * The indexes follow mt9m114_test_pattern_menu.
++			 *
++			 * \todo Add .unitCellSize once the pixel pitch has been
++			 * confirmed from the datasheet.
++			 */
++			.testPatternModes = {
++				{ controls::draft::TestPatternModeOff, 0 },
++				{ controls::draft::TestPatternModeSolidColor, 1 },
++				{ controls::draft::TestPatternModeColorBars, 2 },
++				{ controls::draft::TestPatternModePn9, 3 },
++				{ controls::draft::TestPatternModeColorBarsFadeToGray, 4 },
++			},
++			.sensorDelays = { },
++		} },
+ 		{ "ov5640", {
+ 			.unitCellSize = { 1400, 1400 },
+ 			.testPatternModes = {

@@ -1,0 +1,190 @@
+From 9f3a97eb8fc5bd4ab7f9a39d8b213a6b3c2f0a7e Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 08:52:07 +0100
+Subject: [PATCH] sensor: legacy: support image processing units such as the
+ MT9M114 IFP
+
+An entity with the image processing unit function produces processed
+output, even when its source pad can also pass raw data through. Do not
+require the raw sensor controls for it.
+
+The IFP scales to any size within the range of its source pad, where the
+size is set through the compose rectangle of the sink pad rather than on
+the source pad. Add a few common sizes to the continuous ranges so they
+can be selected, report them from tryFormat() and apply them through the
+compose rectangle in setFormat().
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Upstream-Status: Pending
+---
+ src/libcamera/sensor/camera_sensor_legacy.cpp | 126 ++++++++++++++++--
+ 1 file changed, 117 insertions(+), 9 deletions(-)
+
+diff --git a/src/libcamera/sensor/camera_sensor_legacy.cpp b/src/libcamera/sensor/camera_sensor_legacy.cpp
+index bbe3f2e..88238e0 100644
+--- a/src/libcamera/sensor/camera_sensor_legacy.cpp
++++ b/src/libcamera/sensor/camera_sensor_legacy.cpp
+@@ -107,6 +107,7 @@ private:
+ 	LIBCAMERA_DISABLE_COPY(CameraSensorLegacy)
+ 
+ 	int init();
++	int setIspOutputSize(const Size &size, V4L2SubdeviceFormat *format);
+ 	int generateId();
+ 	int validateSensorDriver();
+ 	void initVimcDefaultProperties();
+@@ -227,6 +228,40 @@ int CameraSensorLegacy::init()
+ 		return -EINVAL;
+ 	}
+ 
++	/*
++	 * Image processing units such as the MT9M114 IFP report their output
++	 * sizes as a continuous range and scale to any size within it. Only the
++	 * maximum of a range is otherwise exposed, which leaves no way to
++	 * select a smaller size. Add a few common sizes inside each range.
++	 */
++	if (entity_->function() == MEDIA_ENT_F_PROC_VIDEO_ISP) {
++		static constexpr Size commonSizes[] = {
++			{ 640, 480 }, { 800, 600 }, { 1024, 768 },
++		};
++
++		for (auto &format : formats_) {
++			std::vector<SizeRange> &ranges = format.second;
++			std::vector<SizeRange> extra;
++
++			for (const SizeRange &range : ranges) {
++				if (range.min == range.max)
++					continue;
++
++				for (const Size &size : commonSizes) {
++					if (size.width < range.min.width ||
++					    size.height < range.min.height ||
++					    size.width >= range.max.width ||
++					    size.height >= range.max.height)
++						continue;
++
++					extra.emplace_back(size);
++				}
++			}
++
++			ranges.insert(ranges.end(), extra.begin(), extra.end());
++		}
++	}
++
+ 	mbusCodes_ = utils::map_keys(formats_);
+ 	std::sort(mbusCodes_.begin(), mbusCodes_.end());
+ 
+@@ -262,12 +297,21 @@ int CameraSensorLegacy::init()
+ 		return discoverAncillaryDevices();
+ 	}
+ 
+-	/* Get the color filter array pattern (only for RAW sensors). */
+-	for (unsigned int mbusCode : mbusCodes_) {
+-		const BayerFormat &bayerFormat = BayerFormat::fromMbusCode(mbusCode);
+-		if (bayerFormat.isValid()) {
+-			bayerFormat_ = &bayerFormat;
+-			break;
++	/*
++	 * Get the color filter array pattern (only for RAW sensors).
++	 *
++	 * An entity that is an image processing unit (such as the MT9M114 IFP)
++	 * produces processed YUV or RGB output on its source pad, even when
++	 * the same pad can also be switched to a raw pass-through mode. Treat
++	 * it as a non-raw source, so the raw sensor controls are not required.
++	 */
++	if (entity_->function() != MEDIA_ENT_F_PROC_VIDEO_ISP) {
++		for (unsigned int mbusCode : mbusCodes_) {
++			const BayerFormat &bayerFormat = BayerFormat::fromMbusCode(mbusCode);
++			if (bayerFormat.isValid()) {
++				bayerFormat_ = &bayerFormat;
++				break;
++			}
+ 		}
+ 	}
+ 
+@@ -791,19 +835,83 @@ int CameraSensorLegacy::setFormat(V4L2SubdeviceFormat *format, Transform transfo
+ 			return ret;
+ 	}
+ 
+-	/* Apply format on the subdev. */
++	/*
++	 * Apply format on the subdev. For an image processing unit, the size
++	 * of the source pad is not directly settable: the media bus code is
++	 * selected on the source pad, and the size is the compose rectangle of
++	 * its sink pad.
++	 */
++	Size requestedSize = format->size;
++
+ 	int ret = subdev_->setFormat(pad_, format);
+ 	if (ret)
+ 		return ret;
+ 
++	if (entity_->function() == MEDIA_ENT_F_PROC_VIDEO_ISP &&
++	    requestedSize != format->size) {
++		ret = setIspOutputSize(requestedSize, format);
++		if (ret)
++			return ret;
++	}
++
+ 	subdev_->updateControlInfo();
+ 	return 0;
+ }
+ 
++int CameraSensorLegacy::setIspOutputSize(const Size &size,
++					 V4L2SubdeviceFormat *format)
++{
++	const MediaPad *sink = nullptr;
++
++	for (const MediaPad *pad : entity_->pads()) {
++		if (pad->flags() & MEDIA_PAD_FL_SINK) {
++			sink = pad;
++			break;
++		}
++	}
++
++	if (!sink)
++		return 0;
++
++	Rectangle compose(size);
++	int ret = subdev_->setSelection(sink->index(), V4L2_SEL_TGT_COMPOSE,
++					&compose);
++	if (ret)
++		return ret;
++
++	return subdev_->getFormat(pad_, format);
++}
++
+ int CameraSensorLegacy::tryFormat(V4L2SubdeviceFormat *format) const
+ {
+-	return subdev_->setFormat(pad_, format,
+-				  V4L2Subdevice::Whence::TryFormat);
++	Size requestedSize = format->size;
++
++	int ret = subdev_->setFormat(pad_, format,
++				     V4L2Subdevice::Whence::TryFormat);
++	if (ret)
++		return ret;
++
++	/*
++	 * An image processing unit scales to any size within the range of its
++	 * source pad, which can't be tried without changing the active state.
++	 * Report the requested size if it is within the range.
++	 */
++	if (entity_->function() == MEDIA_ENT_F_PROC_VIDEO_ISP &&
++	    requestedSize != format->size) {
++		const auto it = formats_.find(format->code);
++		if (it != formats_.end()) {
++			for (const SizeRange &range : it->second) {
++				if (range.contains(requestedSize) &&
++				    requestedSize.width <= format->size.width &&
++				    requestedSize.height <= format->size.height) {
++					format->size = requestedSize;
++					break;
++				}
++			}
++		}
++	}
++
++	return 0;
+ }
+ 
+ int CameraSensorLegacy::applyConfiguration(const SensorConfiguration &config,

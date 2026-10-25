@@ -1,0 +1,89 @@
+From bd74b2ceecec4a33f7eed6a60c5da16e576a0869 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 09:51:53 +0100
+Subject: [PATCH] pipeline: simple: only delay sensor controls that exist,
+ prefer YUV default
+
+Sensors with an on-chip ISP, such as the MT9M114, expose neither gain
+nor exposure. Requesting delays for them made DelayedControls log an
+error per control. Only register the controls the sensor provides.
+
+The default stream format was the first entry of a map sorted by
+fourcc, which made RGB565 the default for the cape. Prefer the first
+YUV format for processed streams and keep the old choice as fallback.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Upstream-Status: Pending
+---
+ src/libcamera/pipeline/simple/simple.cpp | 45 +++++++++++++++++++-----
+ 1 file changed, 37 insertions(+), 8 deletions(-)
+
+diff --git a/src/libcamera/pipeline/simple/simple.cpp b/src/libcamera/pipeline/simple/simple.cpp
+index 2c9efcf..91d0dd6 100644
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -566,11 +566,23 @@ SimpleCameraData::SimpleCameraData(SimplePipelineHandler *pipe,
+ 	if (!sensor_)
+ 		return;
+ 
+-	const CameraSensorProperties::SensorDelays &delays = sensor_->sensorDelays();
+-	std::unordered_map<uint32_t, DelayedControls::ControlParams> params = {
+-		{ V4L2_CID_ANALOGUE_GAIN, { delays.gainDelay, false } },
+-		{ V4L2_CID_EXPOSURE, { delays.exposureDelay, false } },
+-	};
++	/*
++	 * Only delay the controls the sensor actually exposes. Sensors with an
++	 * on-chip ISP, such as the MT9M114, run their own exposure and gain
++	 * regulation and expose neither control.
++	 */
++	std::unordered_map<uint32_t, DelayedControls::ControlParams> params;
++	const ControlInfoMap &sensorControls = sensor_->controls();
++
++	if (sensorControls.count(V4L2_CID_ANALOGUE_GAIN) ||
++	    sensorControls.count(V4L2_CID_EXPOSURE)) {
++		const CameraSensorProperties::SensorDelays &delays = sensor_->sensorDelays();
++
++		if (sensorControls.count(V4L2_CID_ANALOGUE_GAIN))
++			params[V4L2_CID_ANALOGUE_GAIN] = { delays.gainDelay, false };
++		if (sensorControls.count(V4L2_CID_EXPOSURE))
++			params[V4L2_CID_EXPOSURE] = { delays.exposureDelay, false };
++	}
+ 	delayedCtrls_ = std::make_unique<DelayedControls>(sensor_->device(), params);
+ 
+ 	LOG(SimplePipeline, Debug)
+@@ -1480,15 +1492,32 @@ SimplePipelineHandler::generateConfiguration(Camera *camera, std::span<const Str
+ 
+ 	/*
+ 	 * Create the stream configurations. Take the first entry in the formats
+-	 * map as the default, for lack of a better option.
++	 * map (the first YUV one for processed streams) as the default, for
++	 * lack of a better option.
+ 	 *
+ 	 * \todo Implement a better way to pick the default format
+ 	 */
+ 	for (StreamRole role : roles) {
+ 		const auto &formats = (role == StreamRole::Raw ? rawFormats : processedFormats);
+ 		StreamConfiguration cfg{ StreamFormats{ formats } };
+-		cfg.pixelFormat = formats.begin()->first;
+-		cfg.size = formats.begin()->second[0].max;
++		/*
++		 * Prefer a YUV format as the default for processed streams, as
++		 * it is directly usable, over whatever sorts first.
++		 */
++		auto def = formats.begin();
++		if (role != StreamRole::Raw) {
++			for (auto it = formats.begin(); it != formats.end(); ++it) {
++				const PixelFormatInfo &info = PixelFormatInfo::info(it->first);
++				if (info.isValid() &&
++				    info.colourEncoding == PixelFormatInfo::ColourEncodingYUV) {
++					def = it;
++					break;
++				}
++			}
++		}
++
++		cfg.pixelFormat = def->first;
++		cfg.size = def->second[0].max;
+ 
+ 		config->addConfiguration(cfg);
+ 	}

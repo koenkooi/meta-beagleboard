@@ -1,0 +1,139 @@
+From 9df3d3a1524c8dc46739412e3b7cdf2a375a7510 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 09:51:53 +0100
+Subject: [PATCH] sensor: legacy: read the IFP selection rectangles from its
+ sink pad
+
+An image processing unit such as the MT9M114 IFP exposes the crop
+rectangle of the pixel array on its sink pad and has no selection
+targets on its source pad. Probing the source pad produced four errors
+and a "driver needs to be fixed" warning for a driver that is correct.
+Read the readable and active areas from the sink pad instead.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Upstream-Status: Pending
+---
+ src/libcamera/sensor/camera_sensor_legacy.cpp | 104 ++++++++++++------
+ 1 file changed, 71 insertions(+), 33 deletions(-)
+
+diff --git a/src/libcamera/sensor/camera_sensor_legacy.cpp b/src/libcamera/sensor/camera_sensor_legacy.cpp
+index 88238e0..ad47675 100644
+--- a/src/libcamera/sensor/camera_sensor_legacy.cpp
++++ b/src/libcamera/sensor/camera_sensor_legacy.cpp
+@@ -441,45 +441,83 @@ int CameraSensorLegacy::validateSensorDriver()
+ 	 * \todo Make support for selection targets mandatory as soon as all
+ 	 * test platforms have been updated.
+ 	 */
+-	int ret = subdev_->getSelection(pad_, V4L2_SEL_TGT_NATIVE_SIZE, &pixelArrayArea_);
+-	if (ret) {
++	int ret;
++	Rectangle rect;
++
++	if (entity_->function() == MEDIA_ENT_F_PROC_VIDEO_ISP) {
+ 		/*
+-		 * Default the pixel array size to the largest size supported
+-		 * by the sensor. The sizes_ vector is sorted in ascending
+-		 * order, the largest size is thus the last element.
++		 * An image processing unit, such as the MT9M114 IFP, exposes
++		 * the crop rectangle of the pixel array on its sink pad and
++		 * has no selection targets on its source pad. Use the sink
++		 * pad instead of probing targets that are known to be absent.
+ 		 */
+-		pixelArrayArea_ = Rectangle(sizes_.back());
++		unsigned int sinkPad = 0;
++		for (const MediaPad *p : entity_->pads()) {
++			if (p->flags() & MEDIA_PAD_FL_SINK) {
++				sinkPad = p->index();
++				break;
++			}
++		}
+ 
+-		LOG(CameraSensor, Warning)
+-			<< "The PixelArrayArea property has been defaulted to "
+-			<< pixelArrayArea_;
+-		err = -EINVAL;
+-	}
++		ret = subdev_->getSelection(sinkPad, V4L2_SEL_TGT_CROP_BOUNDS, &readableArea_);
++		if (ret) {
++			readableArea_ = Rectangle(sizes_.back());
++			LOG(CameraSensor, Warning)
++				<< "The PixelArrayReadableArea property has been defaulted to "
++				<< readableArea_;
++			err = -EINVAL;
++		}
+ 
+-	ret = subdev_->getSelection(pad_, V4L2_SEL_TGT_CROP_BOUNDS, &readableArea_);
+-	if (ret) {
+-		readableArea_ = pixelArrayArea_;
+-		LOG(CameraSensor, Warning)
+-			<< "The PixelArrayReadableArea property has been defaulted to "
+-			<< readableArea_;
+-		err = -EINVAL;
+-	}
++		pixelArrayArea_ = readableArea_;
+ 
+-	ret = subdev_->getSelection(pad_, V4L2_SEL_TGT_CROP_DEFAULT, &activeArea_);
+-	if (ret) {
+-		activeArea_ = readableArea_;
+-		LOG(CameraSensor, Warning)
+-			<< "The PixelArrayActiveAreas property has been defaulted to "
+-			<< activeArea_;
+-		err = -EINVAL;
+-	}
++		ret = subdev_->getSelection(sinkPad, V4L2_SEL_TGT_CROP, &activeArea_);
++		if (ret) {
++			activeArea_ = readableArea_;
++			LOG(CameraSensor, Warning)
++				<< "The PixelArrayActiveAreas property has been defaulted to "
++				<< activeArea_;
++			err = -EINVAL;
++		}
++	} else {
++		ret = subdev_->getSelection(pad_, V4L2_SEL_TGT_NATIVE_SIZE, &pixelArrayArea_);
++		if (ret) {
++			/*
++			 * Default the pixel array size to the largest size supported
++			 * by the sensor. The sizes_ vector is sorted in ascending
++			 * order, the largest size is thus the last element.
++			 */
++			pixelArrayArea_ = Rectangle(sizes_.back());
+ 
+-	Rectangle rect;
+-	ret = subdev_->getSelection(pad_, V4L2_SEL_TGT_CROP, &rect);
+-	if (ret) {
+-		LOG(CameraSensor, Warning)
+-			<< "Failed to retrieve the sensor crop rectangle";
+-		err = -EINVAL;
++			LOG(CameraSensor, Warning)
++				<< "The PixelArrayArea property has been defaulted to "
++				<< pixelArrayArea_;
++			err = -EINVAL;
++		}
++
++		ret = subdev_->getSelection(pad_, V4L2_SEL_TGT_CROP_BOUNDS, &readableArea_);
++		if (ret) {
++			readableArea_ = pixelArrayArea_;
++			LOG(CameraSensor, Warning)
++				<< "The PixelArrayReadableArea property has been defaulted to "
++				<< readableArea_;
++			err = -EINVAL;
++		}
++
++		ret = subdev_->getSelection(pad_, V4L2_SEL_TGT_CROP_DEFAULT, &activeArea_);
++		if (ret) {
++			activeArea_ = readableArea_;
++			LOG(CameraSensor, Warning)
++				<< "The PixelArrayActiveAreas property has been defaulted to "
++				<< activeArea_;
++			err = -EINVAL;
++		}
++
++		ret = subdev_->getSelection(pad_, V4L2_SEL_TGT_CROP, &rect);
++		if (ret) {
++			LOG(CameraSensor, Warning)
++				<< "Failed to retrieve the sensor crop rectangle";
++			err = -EINVAL;
++		}
+ 	}
+ 
+ 	if (err) {

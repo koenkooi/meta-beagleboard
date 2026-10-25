@@ -1,0 +1,35 @@
+From adef696572d32c88cdbeac59736c8e111191fae0 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 08:38:04 +0100
+Subject: [PATCH] sensor: properties: mt9m114: initialise unitCellSize
+ explicitly
+
+The previous entry omitted the first designated initialiser, which the
+build rejects with -Werror=missing-field-initializers. Spell out a zero
+(unknown) size until the pixel pitch is confirmed from the datasheet.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Upstream-Status: Pending
+---
+ src/libcamera/sensor/camera_sensor_properties.cpp | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/src/libcamera/sensor/camera_sensor_properties.cpp b/src/libcamera/sensor/camera_sensor_properties.cpp
+index 326f1e1..e5f0b9e 100644
+--- a/src/libcamera/sensor/camera_sensor_properties.cpp
++++ b/src/libcamera/sensor/camera_sensor_properties.cpp
+@@ -446,9 +446,12 @@ const CameraSensorProperties *CameraSensorProperties::get(const std::string &sen
+ 			 * subdev, which is the sensor subdev used by libcamera.
+ 			 * The indexes follow mt9m114_test_pattern_menu.
+ 			 *
+-			 * \todo Add .unitCellSize once the pixel pitch has been
+-			 * confirmed from the datasheet.
++			 * \todo Fill in .unitCellSize once the pixel pitch has
++			 * been confirmed from the datasheet. A zero size means
++			 * unknown; it is only spelled out because the build
++			 * rejects missing designated initialisers.
+ 			 */
++			.unitCellSize = { 0, 0 },
+ 			.testPatternModes = {
+ 				{ controls::draft::TestPatternModeOff, 0 },
+ 				{ controls::draft::TestPatternModeSolidColor, 1 },
