@@ -1,0 +1,47 @@
+From 2b05a4916fc890e19d2351c581599dafc3be2387 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 16:18:46 +0100
+Subject: [PATCH 23/23] ARM: dts: am335x-bone: add the BeagleBone CAM3 camera
+ cape overlay
+
+Add a device tree overlay for the CircuitCo BeagleBone 3.1MP camera cape
+(BB-BONE-CAM3-01, revision 00A2): a QuickLogic CSSP camera interface on
+GPMC chip select 1 with an Aptina MT9T112 sensor board on I2C2. It shares
+the host side (GPMC timings, pins, regulators, EDMA crossbar DMA request)
+with the BB-BONE-CAM-VVDN-00A0 overlay and is named after the cape EEPROM
+part number and version for U-Boot's cape scanner in the same way.
+
+The same eMMC restriction applies as for the VVDN cape: the overlay
+disables the eMMC controller, so Black and Green boards must boot from
+microSD, and BeagleBone Green Wireless is not supported.
+
+UNTESTED on hardware: no CAM3 cape was available. Only the host side shared
+with the VVDN overlay has been exercised, on a BeagleBone White.
+
+Upstream-Status: Inappropriate [cape EEPROM file naming for U-Boot's cape scanner]
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ arch/arm/boot/dts/ti/omap/Makefile | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/ti/omap/Makefile b/arch/arm/boot/dts/ti/omap/Makefile
+index b1f1c63ce..771b6c41a 100644
+--- a/arch/arm/boot/dts/ti/omap/Makefile
++++ b/arch/arm/boot/dts/ti/omap/Makefile
+@@ -92,9 +92,12 @@ am335x-bonegreen-hdmi-00a0-dtbs := am335x-bonegreen-eco.dtb \
+ # version so that U-Boot's cape scanner finds <part>-<version>.dtbo. The
+ # combined DTBs only exist so that the overlays get built and validated.
+ am335x-bone-cam-vvdn-00a0-dtbs := am335x-bone.dtb BB-BONE-CAM-VVDN-00A0.dtbo
++am335x-bone-cam3-01-00a2-dtbs := am335x-bone.dtb BB-BONE-CAM3-01-00A2.dtbo
+ 
+ dtb-$(CONFIG_SOC_AM33XX) += BB-BONE-CAM-VVDN-00A0.dtbo \
+-	am335x-bone-cam-vvdn-00a0.dtb
++	BB-BONE-CAM3-01-00A2.dtbo \
++	am335x-bone-cam-vvdn-00a0.dtb \
++	am335x-bone-cam3-01-00a2.dtb
+ 
+ dtb-$(CONFIG_SOC_AM33XX) += \
+ 	am335x-baltos-ir2110.dtb \
+-- 
+2.51.0
+

@@ -1,0 +1,164 @@
+From 2f4b5362a74a429f104dae112a12030eea7bd99e Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 05:25:02 +0100
+Subject: [PATCH] dmaengine: ti: edma: Add source port window support for
+ DEV_TO_MEM
+
+Let a client set src_port_window_size so the EDMA reads a fixed-address
+FIFO or data port in windows (A-synchronised, SRCBIDX 0) instead of one
+word per request, and report the largest window through
+max_src_port_window_size so clients can discover the support and fall
+back when it is absent. Reject windows larger than 65535 bytes and
+bursts above one with a window.
+
+Behaviour with src_port_window_size 0 is unchanged.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Upstream-Status: Pending
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/dma/ti/edma.c | 70 +++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 68 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/dma/ti/edma.c b/drivers/dma/ti/edma.c
+index d97db5af3..ccc131533 100644
+--- a/drivers/dma/ti/edma.c
++++ b/drivers/dma/ti/edma.c
+@@ -116,6 +116,8 @@
+  * requires at least 17 slots, so we setup the default to 20.
+  */
+ #define MAX_NR_SG		20
++/* ACNT is 16 bits, so one A-sync array is at most 65535 bytes */
++#define EDMA_MAX_PORT_WINDOW_BYTES	(SZ_64K - 1)
+ #define EDMA_MAX_SLOTS		MAX_NR_SG
+ #define EDMA_DESCRIPTORS	16
+ 
+@@ -858,11 +860,48 @@ static int edma_slave_config(struct dma_chan *chan,
+ 	    cfg->dst_maxburst > chan->device->max_burst)
+ 		return -EINVAL;
+ 
++	/*
++	 * A source port window turns each DMA event into one A-sync array of
++	 * width * window bytes (see edma_window_acnt()). ACNT is 16 bits, and
++	 * the window replaces the burst, so both must be consistent. Only the
++	 * DEV_TO_MEM side is implemented, the destination window is ignored
++	 * as before.
++	 */
++	if (cfg->src_port_window_size) {
++		u64 acnt = (u64)cfg->src_port_window_size * cfg->src_addr_width;
++
++		if (acnt > EDMA_MAX_PORT_WINDOW_BYTES || cfg->src_maxburst > 1)
++			return -EINVAL;
++	}
++
+ 	memcpy(&echan->cfg, cfg, sizeof(echan->cfg));
+ 
+ 	return 0;
+ }
+ 
++/**
++ * edma_window_acnt - ACNT of a DEV_TO_MEM transfer with a source port window
++ * @cfg: the channel's slave configuration
++ * @dev_width: device side bus width in bytes
++ * @burst: in/out, device side burst, forced to 1 when a window is used
++ *
++ * With a source port window the device is read at src_addr, src_addr + width,
++ * ..., src_addr + (window - 1) * width for each event, then again from
++ * src_addr. That is one A-sync array of width * window bytes with SRCBIDX 0,
++ * which edma_config_pset() builds when @burst is 1.
++ *
++ * Return: the ACNT to use, which is @dev_width when no window is configured.
++ */
++static unsigned int edma_window_acnt(const struct dma_slave_config *cfg,
++				     unsigned int dev_width, u32 *burst)
++{
++	if (!cfg->src_port_window_size)
++		return dev_width;
++
++	*burst = 1;
++	return dev_width * cfg->src_port_window_size;
++}
++
+ static int edma_dma_pause(struct dma_chan *chan)
+ {
+ 	struct edma_chan *echan = to_edma_chan(chan);
+@@ -1016,6 +1055,7 @@ static struct dma_async_tx_descriptor *edma_prep_slave_sg(
+ 	struct edma_desc *edesc;
+ 	dma_addr_t src_addr = 0, dst_addr = 0;
+ 	enum dma_slave_buswidth dev_width;
++	unsigned int acnt;
+ 	u32 burst;
+ 	struct scatterlist *sg;
+ 	int i, nslots, ret;
+@@ -1041,6 +1081,20 @@ static struct dma_async_tx_descriptor *edma_prep_slave_sg(
+ 		return NULL;
+ 	}
+ 
++	acnt = dev_width;
++	if (direction == DMA_DEV_TO_MEM)
++		acnt = edma_window_acnt(&echan->cfg, dev_width, &burst);
++
++	if (acnt != dev_width) {
++		for_each_sg(sgl, sg, sg_len, i) {
++			if (sg_dma_len(sg) % acnt) {
++				dev_err(dev, "%s: segment %d is not a multiple of the port window\n",
++					__func__, i);
++				return NULL;
++			}
++		}
++	}
++
+ 	edesc = kzalloc_flex(*edesc, pset, sg_len, GFP_ATOMIC);
+ 	if (!edesc)
+ 		return NULL;
+@@ -1075,7 +1129,7 @@ static struct dma_async_tx_descriptor *edma_prep_slave_sg(
+ 			src_addr = sg_dma_address(sg);
+ 
+ 		ret = edma_config_pset(chan, &edesc->pset[i], src_addr,
+-				       dst_addr, burst, dev_width,
++				       dst_addr, burst, acnt,
+ 				       sg_dma_len(sg), direction);
+ 		if (ret < 0) {
+ 			kfree(edesc);
+@@ -1304,6 +1358,7 @@ static struct dma_async_tx_descriptor *edma_prep_dma_cyclic(
+ 	dma_addr_t src_addr, dst_addr;
+ 	enum dma_slave_buswidth dev_width;
+ 	bool use_intermediate = false;
++	unsigned int acnt;
+ 	u32 burst;
+ 	int i, ret, nslots;
+ 
+@@ -1335,6 +1390,15 @@ static struct dma_async_tx_descriptor *edma_prep_dma_cyclic(
+ 		return NULL;
+ 	}
+ 
++	acnt = dev_width;
++	if (direction == DMA_DEV_TO_MEM)
++		acnt = edma_window_acnt(&echan->cfg, dev_width, &burst);
++
++	if (acnt != dev_width && period_len % acnt) {
++		dev_err(dev, "Period should be multiple of the port window\n");
++		return NULL;
++	}
++
+ 	nslots = (buf_len / period_len) + 1;
+ 
+ 	/*
+@@ -1394,7 +1458,7 @@ static struct dma_async_tx_descriptor *edma_prep_dma_cyclic(
+ 		}
+ 
+ 		ret = edma_config_pset(chan, &edesc->pset[i], src_addr,
+-				       dst_addr, burst, dev_width, period_len,
++				       dst_addr, burst, acnt, period_len,
+ 				       direction);
+ 		if (ret < 0) {
+ 			kfree(edesc);
+@@ -1954,6 +2018,8 @@ static void edma_dma_init(struct edma_cc *ecc, bool legacy_mode)
+ 
+ 	s_ddev->src_addr_widths = EDMA_DMA_BUSWIDTHS;
+ 	s_ddev->dst_addr_widths = EDMA_DMA_BUSWIDTHS;
++	/* in units of the widest bus width, so it holds for every width */
++	s_ddev->max_src_port_window_size = EDMA_MAX_PORT_WINDOW_BYTES / 4;
+ 	s_ddev->directions |= (BIT(DMA_DEV_TO_MEM) | BIT(DMA_MEM_TO_DEV));
+ 	s_ddev->residue_granularity = DMA_RESIDUE_GRANULARITY_BURST;
+ 	s_ddev->max_burst = SZ_32K - 1; /* CIDX: 16bit signed */

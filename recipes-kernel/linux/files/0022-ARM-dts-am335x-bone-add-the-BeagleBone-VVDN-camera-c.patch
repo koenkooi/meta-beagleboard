@@ -1,0 +1,692 @@
+From 24cdf826839257518c740ac6979c7b7e7647c9f4 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 16:18:45 +0100
+Subject: [PATCH 22/23] ARM: dts: am335x-bone: add the BeagleBone VVDN camera
+ cape overlay
+
+Add a device tree overlay for the BeagleBone 1.2MP camera cape (RadiumBoards
+BB-BONE-CAM-VVDN): a QuickLogic CSSP camera interface on GPMC chip select 1
+with an onsemi (Aptina) MT9M114 sensor on I2C2. The CSSP's DMA request
+arrives through the EDMA event crossbar (input 30), so the overlay also
+moves the EDMA memcpy channels away from channel 20.
+
+The cape EEPROM reports part number BB-BONE-CAM-VVDN and version 00A0, and
+U-Boot's cape scanner loads <part>-<version>.dtbo from the device tree
+directory, so the overlay is named after those instead of after the usual
+am335x-* scheme. A combined am335x-bone DTB is built as well so that the
+overlay is applied to a base and gets validated.
+
+The overlay disables the eMMC controller because the eMMC shares
+gpmc_csn1 and gpmc_ad0..7 with the cape. Black and Green boards with the
+cape fitted must boot from microSD; the eMMC is not held in reset and
+possible contention with an idle eMMC on the shared lines is untested.
+BeagleBone Green Wireless is not supported (its WiFi uses gpmc_ad10..15).
+
+Tested on a BeagleBone White only.
+
+Upstream-Status: Inappropriate [cape EEPROM file naming for U-Boot's cape scanner]
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../dts/ti/omap/BB-BONE-CAM-VVDN-00A0.dtso    | 313 ++++++++++++++++++
+ .../dts/ti/omap/BB-BONE-CAM3-01-00A2.dtso     | 309 +++++++++++++++++
+ arch/arm/boot/dts/ti/omap/Makefile            |   8 +
+ 3 files changed, 630 insertions(+)
+ create mode 100644 arch/arm/boot/dts/ti/omap/BB-BONE-CAM-VVDN-00A0.dtso
+ create mode 100644 arch/arm/boot/dts/ti/omap/BB-BONE-CAM3-01-00A2.dtso
+
+diff --git a/arch/arm/boot/dts/ti/omap/BB-BONE-CAM-VVDN-00A0.dtso b/arch/arm/boot/dts/ti/omap/BB-BONE-CAM-VVDN-00A0.dtso
+new file mode 100644
+index 000000000..9d5f575d7
+--- /dev/null
++++ b/arch/arm/boot/dts/ti/omap/BB-BONE-CAM-VVDN-00A0.dtso
+@@ -0,0 +1,313 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2026 Koen Kooi
++ *
++ * BeagleBone 1.2MP camera cape. EEPROM at 0x56: "BeagleBone 1.2MP CAMERA
++ * CAPE", part BB-BONE-CAM-VVDN, version 00A0, RadiumBoards. QuickLogic
++ * CSSP camera interface on GPMC chip select 1, with an onsemi (Aptina)
++ * MT9M114 on I2C2 (chip ID 0x2481, customer revision 0x0002, read on
++ * aptina-bone on 2026-10-19).
++ *
++ * Tested on a BeagleBone White only. Needs the "quicklogic,cssp-camif"
++ * driver; mainline mt9m114 binds.
++ * UNVERIFIED: the host side is assumed identical to the CircuitCo CAM3
++ * cape (the 3.8 overlays differ only in the sensor node); there is no
++ * schematic for the supply wiring.
++ *
++ * U-Boot must apply this overlay before the kernel starts. A runtime
++ * (configfs) overlay does not work: the EDMA driver reads
++ * ti,edma-memcpy-channels only at probe, and the eMMC (on boards that have
++ * one) would have to be removed while it is in use.
++ *
++ * Boards:
++ * - BeagleBone White: no eMMC, nothing else needed.
++ * - BeagleBone Black and Green: the eMMC uses gpmc_csn1 and gpmc_ad0..7.
++ *   This overlay disables the eMMC in Linux, so boot from the microSD
++ *   card with the root filesystem on it. The eMMC is not held in reset, and
++ *   whether an idle eMMC disturbs the shared lines is untested. A board
++ *   that keeps its root filesystem on the eMMC must not load this overlay
++ *   (U-Boot: disable_cape_overlays=BB-BONE-CAM-VVDN)
++ *   or it will not find its root.
++ * - BeagleBone Green Wireless: NOT SUPPORTED. Its WiFi uses gpmc_ad10..15
++ *   and gpmc_clk (am335x-bonegreen-wireless.dts), which the cape needs.
++ * - BeagleBone Black Wireless: the WiFi uses MII pads, no conflict found;
++ *   the eMMC notes for the Black apply.
++ *
++ * Header pins: GPMC AD0..15 on P8.25, 24, 5, 6, 23, 22, 3, 4, 19, 13, 14,
++ * 17, 12, 11, 16, 15; CSN1 P8.21, CLK P8.18, ADVN P8.7, OEN P8.8, WEN P8.10,
++ * BEN0 P8.9, WPN P9.13; DMAR P9.42A; reset P9.18; LDO_EN P9.17;
++ * orientation P9.11; MCLK (CLKOUT2) P9.41B.
++ */
++
++/dts-v1/;
++/plugin/;
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/pinctrl/am33xx.h>
++#include <dt-bindings/media/video-interfaces.h>
++
++&{/} {
++	/*
++	 * Two TPS73701 LDOs on the cape, both enabled by LDO_EN from GPIO0_5
++	 * (through an open-drain buffer). The regulator core shares the
++	 * enable GPIO between the two fixed regulators. The CSSP and the
++	 * sensor board both run from these rails. The LDO_EN pad is muxed
++	 * by the pinmux hog (cam_early_pins), so neither regulator depends
++	 * on the other's probe order.
++	 */
++	cam_1v8: regulator-cam-1v8 {
++		compatible = "regulator-fixed";
++		enable-active-high;
++		gpio = <&gpio0 5 GPIO_ACTIVE_HIGH>;
++		startup-delay-us = <10000>;	/* UNVERIFIED, generous */
++		regulator-max-microvolt = <1800000>;
++		regulator-min-microvolt = <1800000>;
++		regulator-name = "cam-1v8";
++	};
++
++	cam_2v8: regulator-cam-2v8 {
++		compatible = "regulator-fixed";
++		enable-active-high;
++		gpio = <&gpio0 5 GPIO_ACTIVE_HIGH>;
++		startup-delay-us = <10000>;	/* UNVERIFIED, generous */
++		regulator-max-microvolt = <2800000>;
++		regulator-min-microvolt = <2800000>;
++		regulator-name = "cam-2v8";
++	};
++};
++
++&am33xx_pinmux {
++	/*
++	 * Pinmux hog: the shared reset line, LDO_EN and the orientation
++	 * input are muxed when the pin controller probes, before the
++	 * regulators and the sensor can probe. clkout2_pin repeats the base
++	 * DT's own hog (am335x-bone-common.dtsi).
++	 */
++	pinctrl-0 = <&clkout2_pin &cam_early_pins>;
++	pinctrl-names = "default";
++
++	cam_cssp_pins: cam-cssp-pins {
++		pinctrl-single,pins = <
++			/* DMAR: ecap0_in_pwm0_out.xdma_event_intr2 */
++			AM33XX_PADCONF(AM335X_PIN_ECAP0_IN_PWM0_OUT,
++				       PIN_INPUT, MUX_MODE6)
++			/*
++			 * P9.41 and P9.42 each connect to a second SoC pad
++			 * (line names in am335x-boneblack.dts: P9_41A is
++			 * gpio3_20, P9_42B is gpio3_18). Keep them inputs.
++			 */
++			AM33XX_PADCONF(AM335X_PIN_MCASP0_AXR1,
++				       PIN_INPUT, MUX_MODE7)
++			AM33XX_PADCONF(AM335X_PIN_MCASP0_ACLKR,
++				       PIN_INPUT, MUX_MODE7)
++		>;
++	};
++
++	cam_early_pins: cam-early-pins {
++		pinctrl-single,pins = <
++			/*
++			 * CSSP and sensor reset, spi0_d1.gpio0_4: input with
++			 * pull-up until the CSSP driver drives it, so the
++			 * reset stays released while the sensor probes.
++			 */
++			AM33XX_PADCONF(AM335X_PIN_SPI0_D1,
++				       PIN_INPUT_PULLUP, MUX_MODE7)
++			/*
++			 * LDO_EN, spi0_cs0.gpio0_5: pulled down, so the rails
++			 * stay off until a regulator drives the line.
++			 */
++			AM33XX_PADCONF(AM335X_PIN_SPI0_CS0,
++				       PIN_OUTPUT_PULLDOWN, MUX_MODE7)
++			/* Orientation, gpmc_wait0.gpio0_30: low = front */
++			AM33XX_PADCONF(AM335X_PIN_GPMC_WAIT0,
++				       PIN_INPUT, MUX_MODE7)
++		>;
++	};
++
++	/*
++	 * GPMC: AD0..15, then WPN, CSN1, CLK (receiver enabled for the clock
++	 * loopback), ADVN_ALE, OEN_REN, WEN and BEN0_CLE. WPN and BEN0 are
++	 * not in the schematic's GPMC list; kept as in the 3.8 overlay.
++	 */
++	cam_gpmc_pins: cam-gpmc-pins {
++		pinctrl-single,pins = <
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD0,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD1,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD2,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD3,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD4,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD5,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD6,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD7,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD8,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD9,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD10,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD11,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD12,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD13,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD14,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD15,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_WPN,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_CSN1,
++				       PIN_OUTPUT, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_CLK,
++				       PIN_INPUT, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_ADVN_ALE,
++				       PIN_OUTPUT, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_OEN_REN,
++				       PIN_OUTPUT, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_WEN,
++				       PIN_OUTPUT, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_BEN0_CLE,
++				       PIN_OUTPUT, MUX_MODE0)
++		>;
++	};
++};
++
++/*
++ * DMAR (xdma_event_intr2) reaches the EDMA only through the event
++ * crossbar (input 30, see the camera node). The 3.8 board DT routed it to
++ * channel 20 (ti,edma-xbar-event-map = <30 20>); this overlay keeps
++ * channel 20, which am33xx.dtsi gives to memcpy. A memcpy channel is
++ * software triggered (of_edma_xlate()), and overlays cannot delete
++ * properties, so move memcpy to another pair. No AM335x DT client uses
++ * channels 62/63; their direct events are UNVERIFIED (TRM event table).
++ */
++&edma {
++	ti,edma-memcpy-channels = <62 63>;
++};
++
++&gpmc {
++	/* CS1 at the 3.8 address; 16 MiB is the minimum granularity */
++	ranges = <1 0 0x18000000 0x01000000>;
++	#address-cells = <2>;
++	pinctrl-0 = <&cam_gpmc_pins>;
++	pinctrl-names = "default";
++	#size-cells = <1>;
++
++	status = "okay";
++
++	camera@1,0 {
++		compatible = "quicklogic,cssp-camif";
++		reg = <1 0 0x01000000>;
++		bank-width = <2>;
++		/*
++		 * Channel 20, TC 0, crossbar input 30 (xdma_event_intr2).
++		 * Direct event 20 is not connected ("open"), so
++		 * <&edma 20 0> never sees a request.
++		 */
++		dmas = <&edma_xbar 20 0 30>;
++		dma-names = "rx";
++		orientation-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
++		pinctrl-0 = <&cam_cssp_pins>;
++		pinctrl-names = "default";
++		reset-gpios = <&gpio0 4 GPIO_ACTIVE_LOW>;
++		/* Measured: the CSSP reads 0x0000 with the LDOs off */
++		vdd-supply = <&cam_1v8>;
++		/* UNVERIFIED: which rail feeds which CSSP bank */
++		vddio-supply = <&cam_2v8>;
++		/* CS1 timings from BB-BONE-CAM3-01-00A2.dts:152-186 */
++		gpmc,access-ns = <140>;
++		gpmc,adv-on-ns = <0>;
++		gpmc,adv-rd-off-ns = <40>;
++		gpmc,adv-wr-off-ns = <40>;
++		gpmc,burst-length = <16>;
++		gpmc,burst-read;
++		gpmc,bus-turnaround-ns = <40>;
++		gpmc,clk-activation-ns = <20>;
++		gpmc,cs-on-ns = <1>;
++		gpmc,cs-rd-off-ns = <160>;
++		gpmc,cs-wr-off-ns = <310>;
++		gpmc,cycle2cycle-delay-ns = <40>;
++		gpmc,cycle2cycle-samecsen;
++		gpmc,mux-add-data = <2>;	/* address/data multiplexed */
++		gpmc,oe-off-ns = <160>;
++		gpmc,oe-on-ns = <60>;
++		gpmc,page-burst-access-ns = <20>;
++		gpmc,rd-cycle-ns = <160>;
++		gpmc,sync-clk-ps = <20000>;	/* 50 MHz GPMC_CLK */
++		gpmc,sync-read;
++		gpmc,sync-write;
++		gpmc,we-off-ns = <310>;
++		gpmc,we-on-ns = <60>;
++		gpmc,wr-access-ns = <100>;
++		gpmc,wr-cycle-ns = <310>;
++		gpmc,wr-data-mux-bus-ns = <60>;
++
++		port {
++			cssp_in: endpoint {
++				bus-type = <MEDIA_BUS_TYPE_PARALLEL>;
++				bus-width = <8>;
++				/* UNVERIFIED: LV/FV active high */
++				hsync-active = <1>;
++				/* falling edge: REG_MODE.PCLK_POL = 1 */
++				pclk-sample = <0>;
++				remote-endpoint = <&mt9m114_out>;
++				vsync-active = <1>;
++			};
++		};
++	};
++};
++
++&i2c2 {
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	camera@48 {
++		compatible = "onnn,mt9m114";
++		reg = <0x48>;
++		/*
++		 * 32 MHz = dpll_per_m2 192 MHz / 6. mt9m114 probes with this
++		 * setting (aptina-bone, 2026-10-19).
++		 */
++		assigned-clock-parents = <&dpll_per_m2_ck>, <0>;
++		assigned-clock-rates = <0>, <32000000>;
++		assigned-clocks = <&sysclkout_pre_ck>, <&clkout2_div_ck>;
++		clocks = <&clkout2_ck>;
++		/*
++		 * No reset-gpios: GPIO0_4 resets the CSSP and the sensor,
++		 * and the CSSP driver owns it. mt9m114 then uses its soft
++		 * reset. UNVERIFIED supply mapping (no schematic).
++		 */
++		vaa-supply = <&cam_2v8>;
++		vdd-supply = <&cam_1v8>;
++		vddio-supply = <&cam_2v8>;
++
++		port {
++			mt9m114_out: endpoint {
++				bus-type = <MEDIA_BUS_TYPE_PARALLEL>;
++				/*
++				 * 2 x 48 MHz pixel clock. The driver accepted
++				 * it with the 32 MHz EXTCLK at probe; the PLL
++				 * values it chose were not recorded (hand
++				 * calculation: M=36 N=3 P=8). The binding
++				 * forbids bus-width and polarity properties.
++				 */
++				link-frequencies = /bits/ 64 <96000000>;
++				remote-endpoint = <&cssp_in>;
++			};
++		};
++	};
++};
++
++/* Black/Green: the eMMC shares gpmc_csn1 and gpmc_ad0..7 */
++&mmc2 {
++	status = "disabled";
++};
+diff --git a/arch/arm/boot/dts/ti/omap/BB-BONE-CAM3-01-00A2.dtso b/arch/arm/boot/dts/ti/omap/BB-BONE-CAM3-01-00A2.dtso
+new file mode 100644
+index 000000000..6bc06fc7e
+--- /dev/null
++++ b/arch/arm/boot/dts/ti/omap/BB-BONE-CAM3-01-00A2.dtso
+@@ -0,0 +1,309 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2026 Koen Kooi
++ *
++ * BeagleBone 3.1MP camera cape (CircuitCo BB-BONE-CAM3-01, revision 00A2):
++ * QuickLogic CSSP camera interface on GPMC chip select 1, with the Aptina
++ * MT9T112 sensor board on I2C2.
++ *
++ * UNTESTED on hardware: no CAM3 cape was available, only the shared host
++ * side (CSSP, GPMC, DMA) was exercised with the VVDN cape. Needs the
++ * "quicklogic,cssp-camif" driver and the OF-enabled mt9t112. U-Boot loads
++ * this overlay only when a CAM3 cape EEPROM is present
++ * (disable_cape_overlays=BB-BONE-CAM3-01 turns it off).
++ *
++ * U-Boot must apply this overlay before the kernel starts. A runtime
++ * (configfs) overlay does not work: the EDMA driver reads
++ * ti,edma-memcpy-channels only at probe, and the eMMC (on boards that have
++ * one) would have to be removed while it is in use.
++ *
++ * Boards:
++ * - BeagleBone White: no eMMC, nothing else needed.
++ * - BeagleBone Black and Green: the eMMC uses gpmc_csn1 and gpmc_ad0..7.
++ *   This overlay disables the eMMC in Linux, so boot from the microSD
++ *   card with the root filesystem on it. The eMMC is not held in reset, and
++ *   whether an idle eMMC disturbs the shared lines is untested. A board
++ *   that keeps its root filesystem on the eMMC must not load this overlay
++ *   (U-Boot: disable_cape_overlays=BB-BONE-CAM3-01)
++ *   or it will not find its root.
++ * - BeagleBone Green Wireless: NOT SUPPORTED. Its WiFi uses gpmc_ad10..15
++ *   and gpmc_clk (am335x-bonegreen-wireless.dts), which the cape needs.
++ * - BeagleBone Black Wireless: the WiFi uses MII pads, no conflict found;
++ *   the eMMC notes for the Black apply.
++ *
++ * Header pins: GPMC AD0..15 on P8.25, 24, 5, 6, 23, 22, 3, 4, 19, 13, 14,
++ * 17, 12, 11, 16, 15; CSN1 P8.21, CLK P8.18, ADVN P8.7, OEN P8.8, WEN P8.10,
++ * BEN0 P8.9, WPN P9.13; DMAR P9.42A; reset P9.18; LDO_EN P9.17;
++ * orientation P9.11; MCLK (CLKOUT2) P9.41B.
++ */
++
++/dts-v1/;
++/plugin/;
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/pinctrl/am33xx.h>
++#include <dt-bindings/media/video-interfaces.h>
++
++&{/} {
++	/*
++	 * Two TPS73701 LDOs on the cape, both enabled by LDO_EN from GPIO0_5
++	 * (through an open-drain buffer). The regulator core shares the
++	 * enable GPIO between the two fixed regulators. The CSSP and the
++	 * sensor board both run from these rails. The LDO_EN pad is muxed
++	 * by the pinmux hog (cam_early_pins), so neither regulator depends
++	 * on the other's probe order.
++	 */
++	cam_1v8: regulator-cam-1v8 {
++		compatible = "regulator-fixed";
++		enable-active-high;
++		gpio = <&gpio0 5 GPIO_ACTIVE_HIGH>;
++		startup-delay-us = <10000>;	/* UNVERIFIED, generous */
++		regulator-max-microvolt = <1800000>;
++		regulator-min-microvolt = <1800000>;
++		regulator-name = "cam-1v8";
++	};
++
++	cam_2v8: regulator-cam-2v8 {
++		compatible = "regulator-fixed";
++		enable-active-high;
++		gpio = <&gpio0 5 GPIO_ACTIVE_HIGH>;
++		startup-delay-us = <10000>;	/* UNVERIFIED, generous */
++		regulator-max-microvolt = <2800000>;
++		regulator-min-microvolt = <2800000>;
++		regulator-name = "cam-2v8";
++	};
++};
++
++&am33xx_pinmux {
++	/*
++	 * Pinmux hog: the shared reset line, LDO_EN and the orientation
++	 * input are muxed when the pin controller probes, before the
++	 * regulators and the sensor can probe. clkout2_pin repeats the base
++	 * DT's own hog (am335x-bone-common.dtsi).
++	 */
++	pinctrl-0 = <&clkout2_pin &cam_early_pins>;
++	pinctrl-names = "default";
++
++	cam_cssp_pins: cam-cssp-pins {
++		pinctrl-single,pins = <
++			/* DMAR: ecap0_in_pwm0_out.xdma_event_intr2 */
++			AM33XX_PADCONF(AM335X_PIN_ECAP0_IN_PWM0_OUT,
++				       PIN_INPUT, MUX_MODE6)
++			/*
++			 * P9.41 and P9.42 each connect to a second SoC pad
++			 * (line names in am335x-boneblack.dts: P9_41A is
++			 * gpio3_20, P9_42B is gpio3_18). Keep them inputs.
++			 */
++			AM33XX_PADCONF(AM335X_PIN_MCASP0_AXR1,
++				       PIN_INPUT, MUX_MODE7)
++			AM33XX_PADCONF(AM335X_PIN_MCASP0_ACLKR,
++				       PIN_INPUT, MUX_MODE7)
++		>;
++	};
++
++	cam_early_pins: cam-early-pins {
++		pinctrl-single,pins = <
++			/*
++			 * CSSP and sensor reset, spi0_d1.gpio0_4: input with
++			 * pull-up until the CSSP driver drives it, so the
++			 * reset stays released while the sensor probes.
++			 */
++			AM33XX_PADCONF(AM335X_PIN_SPI0_D1,
++				       PIN_INPUT_PULLUP, MUX_MODE7)
++			/*
++			 * LDO_EN, spi0_cs0.gpio0_5: pulled down, so the rails
++			 * stay off until a regulator drives the line.
++			 */
++			AM33XX_PADCONF(AM335X_PIN_SPI0_CS0,
++				       PIN_OUTPUT_PULLDOWN, MUX_MODE7)
++			/* Orientation, gpmc_wait0.gpio0_30: low = front */
++			AM33XX_PADCONF(AM335X_PIN_GPMC_WAIT0,
++				       PIN_INPUT, MUX_MODE7)
++		>;
++	};
++
++	/*
++	 * GPMC: AD0..15, then WPN, CSN1, CLK (receiver enabled for the clock
++	 * loopback), ADVN_ALE, OEN_REN, WEN and BEN0_CLE. WPN and BEN0 are
++	 * not in the schematic's GPMC list; kept as in the 3.8 overlay.
++	 */
++	cam_gpmc_pins: cam-gpmc-pins {
++		pinctrl-single,pins = <
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD0,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD1,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD2,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD3,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD4,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD5,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD6,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD7,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD8,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD9,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD10,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD11,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD12,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD13,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD14,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_AD15,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_WPN,
++				       PIN_INPUT_PULLUP, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_CSN1,
++				       PIN_OUTPUT, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_CLK,
++				       PIN_INPUT, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_ADVN_ALE,
++				       PIN_OUTPUT, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_OEN_REN,
++				       PIN_OUTPUT, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_WEN,
++				       PIN_OUTPUT, MUX_MODE0)
++			AM33XX_PADCONF(AM335X_PIN_GPMC_BEN0_CLE,
++				       PIN_OUTPUT, MUX_MODE0)
++		>;
++	};
++};
++
++/*
++ * DMAR (xdma_event_intr2) reaches the EDMA only through the event
++ * crossbar (input 30, see the camera node). The 3.8 board DT routed it to
++ * channel 20 (ti,edma-xbar-event-map = <30 20>); this overlay keeps
++ * channel 20, which am33xx.dtsi gives to memcpy. A memcpy channel is
++ * software triggered (of_edma_xlate()), and overlays cannot delete
++ * properties, so move memcpy to another pair. No AM335x DT client uses
++ * channels 62/63; their direct events are UNVERIFIED (TRM event table).
++ */
++&edma {
++	ti,edma-memcpy-channels = <62 63>;
++};
++
++&gpmc {
++	/* CS1 at the 3.8 address; 16 MiB is the minimum granularity */
++	ranges = <1 0 0x18000000 0x01000000>;
++	#address-cells = <2>;
++	pinctrl-0 = <&cam_gpmc_pins>;
++	pinctrl-names = "default";
++	#size-cells = <1>;
++
++	status = "okay";
++
++	camera@1,0 {
++		compatible = "quicklogic,cssp-camif";
++		reg = <1 0 0x01000000>;
++		bank-width = <2>;
++		/*
++		 * Channel 20, TC 0, crossbar input 30 (xdma_event_intr2).
++		 * Direct event 20 is not connected ("open"), so
++		 * <&edma 20 0> never sees a request.
++		 */
++		dmas = <&edma_xbar 20 0 30>;
++		dma-names = "rx";
++		orientation-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
++		pinctrl-0 = <&cam_cssp_pins>;
++		pinctrl-names = "default";
++		reset-gpios = <&gpio0 4 GPIO_ACTIVE_LOW>;
++		/* Measured: the CSSP reads 0x0000 with the LDOs off */
++		vdd-supply = <&cam_1v8>;
++		/* UNVERIFIED: which rail feeds which CSSP bank */
++		vddio-supply = <&cam_2v8>;
++		/* CS1 timings from BB-BONE-CAM3-01-00A2.dts:152-186 */
++		gpmc,access-ns = <140>;
++		gpmc,adv-on-ns = <0>;
++		gpmc,adv-rd-off-ns = <40>;
++		gpmc,adv-wr-off-ns = <40>;
++		gpmc,burst-length = <16>;
++		gpmc,burst-read;
++		gpmc,bus-turnaround-ns = <40>;
++		gpmc,clk-activation-ns = <20>;
++		gpmc,cs-on-ns = <1>;
++		gpmc,cs-rd-off-ns = <160>;
++		gpmc,cs-wr-off-ns = <310>;
++		gpmc,cycle2cycle-delay-ns = <40>;
++		gpmc,cycle2cycle-samecsen;
++		gpmc,mux-add-data = <2>;	/* address/data multiplexed */
++		gpmc,oe-off-ns = <160>;
++		gpmc,oe-on-ns = <60>;
++		gpmc,page-burst-access-ns = <20>;
++		gpmc,rd-cycle-ns = <160>;
++		gpmc,sync-clk-ps = <20000>;	/* 50 MHz GPMC_CLK */
++		gpmc,sync-read;
++		gpmc,sync-write;
++		gpmc,we-off-ns = <310>;
++		gpmc,we-on-ns = <60>;
++		gpmc,wr-access-ns = <100>;
++		gpmc,wr-cycle-ns = <310>;
++		gpmc,wr-data-mux-bus-ns = <60>;
++
++		port {
++			cssp_in: endpoint {
++				bus-type = <MEDIA_BUS_TYPE_PARALLEL>;
++				bus-width = <8>;
++				/* UNVERIFIED: LV/FV active high */
++				hsync-active = <1>;
++				/* falling edge: REG_MODE.PCLK_POL = 1 */
++				pclk-sample = <0>;
++				remote-endpoint = <&mt9t112_out>;
++				vsync-active = <1>;
++			};
++		};
++	};
++};
++
++&i2c2 {
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	camera@3c {
++		compatible = "aptina,mt9t112";
++		/* UNVERIFIED: the SAADDR jumper J2 may select 0x3d */
++		reg = <0x3c>;
++		/*
++		 * 32 MHz = dpll_per_m2 192 MHz / 6. The VVDN cape's mt9m114
++		 * probes with this setting (aptina-bone, 2026-10-19).
++		 */
++		assigned-clock-parents = <&dpll_per_m2_ck>, <0>;
++		assigned-clock-rates = <0>, <32000000>;
++		assigned-clocks = <&sysclkout_pre_ck>, <&clkout2_div_ck>;
++		clocks = <&clkout2_ck>;
++		/*
++		 * No reset-gpios: GPIO0_4 resets the CSSP and the sensor,
++		 * and the CSSP driver owns it. CAM_STANDBY is not wired to
++		 * a SoC GPIO.
++		 */
++		vaa-supply = <&cam_2v8>;
++		vdd-supply = <&cam_1v8>;
++		vddio-supply = <&cam_2v8>;
++
++		port {
++			mt9t112_out: endpoint {
++				bus-type = <MEDIA_BUS_TYPE_PARALLEL>;
++				bus-width = <8>;
++				hsync-active = <1>;
++				/* old driver: register 0x3C20 = 0 */
++				pclk-sample = <0>;
++				remote-endpoint = <&cssp_in>;
++				vsync-active = <1>;
++			};
++		};
++	};
++};
++
++/* Black/Green: the eMMC shares gpmc_csn1 and gpmc_ad0..7 */
++&mmc2 {
++	status = "disabled";
++};
+diff --git a/arch/arm/boot/dts/ti/omap/Makefile b/arch/arm/boot/dts/ti/omap/Makefile
+index 3a4d92043..b1f1c63ce 100644
+--- a/arch/arm/boot/dts/ti/omap/Makefile
++++ b/arch/arm/boot/dts/ti/omap/Makefile
+@@ -88,6 +88,14 @@ dtb-$(CONFIG_ARCH_OMAP4) += \
+ am335x-bonegreen-hdmi-00a0-dtbs := am335x-bonegreen-eco.dtb \
+ 	am335x-bone-hdmi-00a0.dtbo
+ 
++# BeagleBone camera cape overlays, named after the cape EEPROM part number and
++# version so that U-Boot's cape scanner finds <part>-<version>.dtbo. The
++# combined DTBs only exist so that the overlays get built and validated.
++am335x-bone-cam-vvdn-00a0-dtbs := am335x-bone.dtb BB-BONE-CAM-VVDN-00A0.dtbo
++
++dtb-$(CONFIG_SOC_AM33XX) += BB-BONE-CAM-VVDN-00A0.dtbo \
++	am335x-bone-cam-vvdn-00a0.dtb
++
+ dtb-$(CONFIG_SOC_AM33XX) += \
+ 	am335x-baltos-ir2110.dtb \
+ 	am335x-baltos-ir3220.dtb \
+-- 
+2.51.0
+

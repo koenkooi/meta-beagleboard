@@ -1,0 +1,159 @@
+From 6bc469a4e2bf29660e93b3546376ff892baab15a Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 08:05:58 +0100
+Subject: [PATCH] media: i2c: mt9m114: Store the frame interval in the subdev
+ state
+
+Keep the IFP frame interval in the active subdev state instead of a
+driver field, which adds support for V4L2_SUBDEV_FORMAT_TRY and makes
+try and active frame intervals consistent.
+
+Upstream-Status: Pending
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/media/i2c/mt9m114.c | 61 +++++++++++++++----------------------
+ 1 file changed, 25 insertions(+), 36 deletions(-)
+
+diff --git a/drivers/media/i2c/mt9m114.c b/drivers/media/i2c/mt9m114.c
+index 893e18e7f..0a490c70c 100644
+--- a/drivers/media/i2c/mt9m114.c
++++ b/drivers/media/i2c/mt9m114.c
+@@ -416,7 +416,6 @@ struct mt9m114 {
+ 		struct media_pad pads[2];
+ 
+ 		struct v4l2_ctrl_handler hdl;
+-		unsigned int frame_rate;
+ 
+ 		struct v4l2_ctrl *tpg[4];
+ 	} ifp;
+@@ -941,11 +940,16 @@ static int mt9m114_configure_ifp(struct mt9m114 *sensor,
+ 	return ret;
+ }
+ 
+-static int mt9m114_set_frame_rate(struct mt9m114 *sensor)
++static int mt9m114_set_frame_rate(struct mt9m114 *sensor,
++				  struct v4l2_subdev_state *ifp_state)
+ {
+-	u16 frame_rate = sensor->ifp.frame_rate << 8;
++	const struct v4l2_fract *ival;
++	u16 frame_rate;
+ 	int ret = 0;
+ 
++	ival = v4l2_subdev_state_get_interval(ifp_state, 1);
++	frame_rate = (ival->denominator / ival->numerator) << 8;
++
+ 	cci_write(sensor->regmap, MT9M114_CAM_AET_MIN_FRAME_RATE,
+ 		  frame_rate, &ret);
+ 	cci_write(sensor->regmap, MT9M114_CAM_AET_MAX_FRAME_RATE,
+@@ -976,7 +980,7 @@ static int mt9m114_start_streaming(struct mt9m114 *sensor,
+ 	if (ret)
+ 		goto error;
+ 
+-	ret = mt9m114_set_frame_rate(sensor);
++	ret = mt9m114_set_frame_rate(sensor, ifp_state);
+ 	if (ret)
+ 		goto error;
+ 
+@@ -1647,21 +1651,10 @@ static int mt9m114_ifp_get_frame_interval(struct v4l2_subdev *sd,
+ 					  struct v4l2_subdev_state *sd_state,
+ 					  struct v4l2_subdev_frame_interval *interval)
+ {
+-	struct v4l2_fract *ival = &interval->interval;
+-	struct mt9m114 *sensor = ifp_to_mt9m114(sd);
+-
+ 	if (interval->pad != 1)
+ 		return -ENOIOCTLCMD;
+ 
+-	/*
+-	 * FIXME: Implement support for V4L2_SUBDEV_FORMAT_TRY, using the V4L2
+-	 * subdev active state API.
+-	 */
+-	if (interval->which != V4L2_SUBDEV_FORMAT_ACTIVE)
+-		return -EINVAL;
+-
+-	ival->numerator = 1;
+-	ival->denominator = sensor->ifp.frame_rate;
++	interval->interval = *v4l2_subdev_state_get_interval(sd_state, 1);
+ 
+ 	return 0;
+ }
+@@ -1672,32 +1665,26 @@ static int mt9m114_ifp_set_frame_interval(struct v4l2_subdev *sd,
+ {
+ 	struct v4l2_fract *ival = &interval->interval;
+ 	struct mt9m114 *sensor = ifp_to_mt9m114(sd);
+-	int ret = 0;
++	unsigned int frame_rate;
+ 
+ 	if (interval->pad != 1)
+ 		return -ENOIOCTLCMD;
+ 
+-	/*
+-	 * FIXME: Implement support for V4L2_SUBDEV_FORMAT_TRY, using the V4L2
+-	 * subdev active state API.
+-	 */
+-	if (interval->which != V4L2_SUBDEV_FORMAT_ACTIVE)
+-		return -EINVAL;
+-
+-	if (ival->numerator != 0 && ival->denominator != 0)
+-		sensor->ifp.frame_rate = min_t(unsigned int,
+-					       ival->denominator / ival->numerator,
+-					       MT9M114_MAX_FRAME_RATE);
++	if (ival->numerator && ival->denominator)
++		frame_rate = clamp_t(unsigned int,
++				     ival->denominator / ival->numerator,
++				     1, MT9M114_MAX_FRAME_RATE);
+ 	else
+-		sensor->ifp.frame_rate = MT9M114_MAX_FRAME_RATE;
++		frame_rate = MT9M114_MAX_FRAME_RATE;
+ 
+ 	ival->numerator = 1;
+-	ival->denominator = sensor->ifp.frame_rate;
++	ival->denominator = frame_rate;
++	*v4l2_subdev_state_get_interval(sd_state, 1) = *ival;
+ 
+-	if (sensor->streaming)
+-		ret = mt9m114_set_frame_rate(sensor);
++	if (interval->which == V4L2_SUBDEV_FORMAT_ACTIVE && sensor->streaming)
++		return mt9m114_set_frame_rate(sensor, sd_state);
+ 
+-	return ret;
++	return 0;
+ }
+ 
+ static int mt9m114_ifp_init_state(struct v4l2_subdev *sd,
+@@ -1707,6 +1694,7 @@ static int mt9m114_ifp_init_state(struct v4l2_subdev *sd,
+ 	struct v4l2_mbus_framefmt *format;
+ 	struct v4l2_rect *crop;
+ 	struct v4l2_rect *compose;
++	struct v4l2_fract *ival;
+ 
+ 	format = v4l2_subdev_state_get_format(state, 0);
+ 
+@@ -1744,6 +1732,10 @@ static int mt9m114_ifp_init_state(struct v4l2_subdev *sd,
+ 	format->quantization = V4L2_QUANTIZATION_DEFAULT;
+ 	format->xfer_func = V4L2_XFER_FUNC_DEFAULT;
+ 
++	ival = v4l2_subdev_state_get_interval(state, 1);
++	ival->numerator = 1;
++	ival->denominator = MT9M114_DEF_FRAME_RATE;
++
+ 	return 0;
+ }
+ 
+@@ -2157,8 +2149,6 @@ static int mt9m114_ifp_init(struct mt9m114 *sensor)
+ 	if (ret < 0)
+ 		return ret;
+ 
+-	sensor->ifp.frame_rate = MT9M114_DEF_FRAME_RATE;
+-
+ 	/* Initialize the control handler. */
+ 	v4l2_ctrl_handler_init(hdl, 8);
+ 	v4l2_ctrl_new_std(hdl, &mt9m114_ifp_ctrl_ops,
+@@ -2206,7 +2196,6 @@ static int mt9m114_ifp_init(struct mt9m114 *sensor)
+ 		goto error;
+ 	}
+ 
+-	sd->ctrl_handler = hdl;
+ 	sd->ctrl_handler = hdl;
+ 	sd->state_lock = hdl->lock;
+ 

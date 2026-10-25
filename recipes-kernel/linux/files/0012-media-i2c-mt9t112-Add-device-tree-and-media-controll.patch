@@ -1,0 +1,1404 @@
+From 3302a5b409ba40c218f2438d080fa2b3d2b5722c Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 04:36:48 +0100
+Subject: [PATCH] media: i2c: mt9t112: Add device tree and media controller
+ support
+
+Convert the driver from platform data and s_power to a modern subdevice:
+
+- Add an of_match_table and parse the parallel endpoint with fwnode.
+- Take the clock, regulators and optional reset GPIO from the device and
+  use runtime PM with autosuspend instead of s_power.
+- Select the PLL setup from the external clock rate (24 or 32 MHz) and
+  program the reference count from it. Platform data users keep the
+  divider they supplied.
+- Register a media entity with one source pad, a subdev state with an
+  init_state, and report pixel rate and link frequency controls.
+- Add flip and test pattern controls.
+- Retry the chip ID read after power up.
+
+For the platform data path (ecovec24 with renesas-ceu, not tested),
+set_fmt accepts the NULL active state and the bare try state without a
+subdev that renesas-ceu passes. The driver now depends on
+MEDIA_CONTROLLER and VIDEO_V4L2_SUBDEV_API, which VIDEO_RENESAS_CEU
+does not select, so a CEU configuration without them loses the sensor.
+Frame rate control is still missing.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Upstream-Status: Pending
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/media/i2c/Kconfig   |    3 +
+ drivers/media/i2c/mt9t112.c | 1049 ++++++++++++++++++++++++++++-------
+ include/media/i2c/mt9t112.h |    9 +-
+ 3 files changed, 847 insertions(+), 214 deletions(-)
+
+diff --git a/drivers/media/i2c/Kconfig b/drivers/media/i2c/Kconfig
+index 5d173e0ec..cbd964bca 100644
+--- a/drivers/media/i2c/Kconfig
++++ b/drivers/media/i2c/Kconfig
+@@ -322,6 +322,9 @@ config VIDEO_MT9P031
+ 
+ config VIDEO_MT9T112
+ 	tristate "Aptina MT9T111/MT9T112 support"
++	depends on I2C && VIDEO_DEV
++	depends on MEDIA_CONTROLLER && VIDEO_V4L2_SUBDEV_API
++	select V4L2_FWNODE
+ 	help
+ 	  This is a Video4Linux2 sensor driver for the Aptina
+ 	  (Micron) MT9T111 and MT9T112 3 Mpixel camera.
+diff --git a/drivers/media/i2c/mt9t112.c b/drivers/media/i2c/mt9t112.c
+index bd2268154..bbf8cdd1f 100644
+--- a/drivers/media/i2c/mt9t112.c
++++ b/drivers/media/i2c/mt9t112.c
+@@ -25,13 +25,22 @@
+ #include <linux/gpio/consumer.h>
+ #include <linux/i2c.h>
+ #include <linux/init.h>
++#include <linux/math.h>
++#include <linux/math64.h>
++#include <linux/mod_devicetable.h>
+ #include <linux/module.h>
++#include <linux/pm_runtime.h>
++#include <linux/property.h>
++#include <linux/regulator/consumer.h>
+ #include <linux/slab.h>
+ #include <linux/v4l2-mediabus.h>
+ #include <linux/videodev2.h>
+ 
+ #include <media/i2c/mt9t112.h>
+ #include <media/v4l2-common.h>
++#include <media/v4l2-ctrls.h>
++#include <media/v4l2-event.h>
++#include <media/v4l2-fwnode.h>
+ #include <media/v4l2-image-sizes.h>
+ #include <media/v4l2-subdev.h>
+ 
+@@ -47,6 +56,17 @@
+ #define MAX_WIDTH   2048
+ #define MAX_HEIGHT  1536
+ 
++/*
++ * Time to wait after the power rails, the clock and the standby and reset
++ * lines have been set up before the first register access. The datasheet
++ * value is not known (UNVERIFIED), the original driver used 100 ms after
++ * releasing the standby GPIO. mt9t112_wait_ready() polls for the chip anyway.
++ */
++#define MT9T112_POWER_UP_DELAY_GPIO_MS	100
++#define MT9T112_POWER_UP_DELAY_MS	10
++
++#define MT9T112_AUTOSUSPEND_DELAY_MS	1000
++
+ /*
+  * macro of read/write
+  */
+@@ -87,16 +107,50 @@ struct mt9t112_format {
+ 	u16 order;
+ };
+ 
++/**
++ * struct mt9t112_pll - PLL configuration for one external clock rate
++ * @extclk:	External clock rate in Hz, 0 if unknown (platform data without
++ *		a clock)
++ * @div:	M, N and P1 to P7 PLL dividers
++ * @refcnt:	Value of the "reference clock count for 20 us" register
++ * @pclk:	Resulting PIXCLK rate in Hz, 0 if unknown
++ */
++struct mt9t112_pll {
++	unsigned long			 extclk;
++	struct mt9t112_pll_divider	 div;
++	u16				 refcnt;
++	unsigned long			 pclk;
++};
++
++struct mt9t112_size {
++	u32 width;
++	u32 height;
++};
++
+ struct mt9t112_priv {
+ 	struct v4l2_subdev		 subdev;
++	struct media_pad		 pad;
++	struct v4l2_ctrl_handler	 hdl;
++	/* hflip and vflip form a cluster and must stay adjacent. */
++	struct v4l2_ctrl		*hflip;
++	struct v4l2_ctrl		*vflip;
++	struct v4l2_ctrl		*test_pattern;
+ 	struct mt9t112_platform_data	*info;
+ 	struct i2c_client		*client;
+-	struct v4l2_rect		 frame;
+ 	struct clk			*clk;
+ 	struct gpio_desc		*standby_gpio;
+-	const struct mt9t112_format	*format;
++	struct gpio_desc		*reset_gpio;
++	struct regulator_bulk_data	 supplies[3];
++	struct mt9t112_pll		 pll;
++	s64				 link_freq;
+ 	int				 num_formats;
+-	bool				 init_done;
++	bool				 pclk_rising;
++	/* Protected by the control handler lock, which is the state lock. */
++	bool				 streaming;
++	/* Hardware state, reset by every initialisation of the sensor. */
++	unsigned int			 flip_applied;
++	bool				 tp_saved;
++	u16				 tp_saved_val[2];
+ };
+ 
+ /************************************************************************
+@@ -137,6 +191,39 @@ static const struct mt9t112_format mt9t112_cfmts[] = {
+ 	},
+ };
+ 
++/*
++ * Discrete frame sizes. The sensor can output any size up to the maximum, but
++ * userspace (libcamera) only looks at the maximum of a continuous range, so a
++ * discrete list is advertised. All sizes are centred crops of the array.
++ */
++static const struct mt9t112_size mt9t112_sizes[] = {
++	{  640,  480 },
++	{  800,  480 },
++	{ 1024,  768 },
++	{ 1280,  720 },
++	{ 1280,  960 },
++	{ 1600, 1200 },
++	{ 2048, 1536 },
++};
++
++/*
++ * PLL settings, keyed by the rate of the external clock. The 32 MHz entry
++ * gives a 768 MHz VCO and a 96 MHz PIXCLK, the 24 MHz entry a 500.6 MHz VCO
++ * and a 71.5 MHz PIXCLK.
++ */
++static const struct {
++	unsigned long			extclk;
++	struct mt9t112_pll_divider	div;
++} mt9t112_plls[] = {
++	{ 24000000, { 0x49, 6, 0, 6, 0, 9, 9, 6, 0 } },
++	{ 32000000, { 24, 1, 0, 7, 0, 10, 14, 7, 0 } },
++};
++
++static const char * const mt9t112_test_pattern_menu[] = {
++	"Disabled",
++	"Color Bar",
++};
++
+ /************************************************************************
+  *			general function
+  ***********************************************************************/
+@@ -147,6 +234,23 @@ static struct mt9t112_priv *to_mt9t112(const struct i2c_client *client)
+ 			    subdev);
+ }
+ 
++static struct mt9t112_priv *sd_to_mt9t112(struct v4l2_subdev *sd)
++{
++	return container_of(sd, struct mt9t112_priv, subdev);
++}
++
++static const struct mt9t112_format *
++mt9t112_find_format(const struct mt9t112_priv *priv, u32 code)
++{
++	int i;
++
++	for (i = 0; i < priv->num_formats; i++)
++		if (mt9t112_cfmts[i].code == code)
++			return &mt9t112_cfmts[i];
++
++	return NULL;
++}
++
+ static int __mt9t112_reg_read(const struct i2c_client *client, u16 command)
+ {
+ 	struct i2c_msg msg[2];
+@@ -339,6 +443,83 @@ static int mt9t112_clock_info(const struct i2c_client *client, u32 ext)
+ }
+ #endif
+ 
++/**
++ * mt9t112_select_pll() - Select the PLL settings for the current clock rate
++ * @priv: the sensor
++ *
++ * A rate listed in the built-in table (within 1%) always wins. Platform data
++ * users with another rate, or without a clock, keep supplying their own
++ * dividers.
++ *
++ * Return: 0 on success, -EINVAL if the clock rate is not supported.
++ */
++static int mt9t112_select_pll(struct mt9t112_priv *priv)
++{
++	struct device *dev = &priv->client->dev;
++	unsigned long rate = priv->clk ? clk_get_rate(priv->clk) : 0;
++	struct mt9t112_pll *pll = &priv->pll;
++	unsigned int i;
++
++	memset(pll, 0, sizeof(*pll));
++
++	for (i = 0; rate && i < ARRAY_SIZE(mt9t112_plls); i++) {
++		unsigned long ref = mt9t112_plls[i].extclk;
++
++		if (abs_diff(rate, ref) > ref / 100)
++			continue;
++
++		pll->extclk = ref;
++		pll->div = mt9t112_plls[i].div;
++		break;
++	}
++
++	if (!pll->extclk) {
++		if (!priv->info) {
++			dev_err(dev, "unsupported external clock rate %lu Hz\n",
++				rate);
++			return -EINVAL;
++		}
++
++		/* Legacy platform data: dividers come from the board file. */
++		pll->extclk = rate;
++		pll->div = priv->info->divider;
++	}
++
++	/* Reference clock count for 20 us, 0x0190 at 20 MHz. */
++	pll->refcnt = pll->extclk ? pll->extclk / 50000 : 0x0190;
++
++	if (pll->extclk) {
++		u64 vco = div_u64((u64)2 * pll->div.m * pll->extclk,
++				  pll->div.n + 1);
++
++		pll->pclk = div_u64(vco, (pll->div.p1 + 1) * (pll->div.p2 + 1));
++	}
++
++	return 0;
++}
++
++/**
++ * mt9t112_wait_ready() - Wait until the chip answers on the I2C bus
++ * @client: the I2C client
++ *
++ * Return: the chip ID register value or a negative error code.
++ */
++static int mt9t112_wait_ready(const struct i2c_client *client)
++{
++	int chipid = -ENODEV;
++	int i;
++
++	for (i = 0; i < 10; i++) {
++		chipid = __mt9t112_reg_read(client, 0x0000);
++		if (chipid >= 0)
++			return chipid;
++
++		usleep_range(10000, 15000);
++	}
++
++	return chipid;
++}
++
+ static int mt9t112_set_a_frame_size(const struct i2c_client *client,
+ 				    u16 width, u16 height)
+ {
+@@ -405,12 +586,12 @@ static int mt9t112_init_pll(const struct i2c_client *client)
+ 	mt9t112_reg_write(ret, client, 0x0014, 0x2145);
+ 
+ 	/* Replace these registers when new timing parameters are generated. */
+-	mt9t112_set_pll_dividers(client,
+-				 priv->info->divider.m, priv->info->divider.n,
+-				 priv->info->divider.p1, priv->info->divider.p2,
+-				 priv->info->divider.p3, priv->info->divider.p4,
+-				 priv->info->divider.p5, priv->info->divider.p6,
+-				 priv->info->divider.p7);
++	ECHECKER(ret, mt9t112_set_pll_dividers(client,
++					       priv->pll.div.m, priv->pll.div.n,
++					       priv->pll.div.p1, priv->pll.div.p2,
++					       priv->pll.div.p3, priv->pll.div.p4,
++					       priv->pll.div.p5, priv->pll.div.p6,
++					       priv->pll.div.p7));
+ 
+ 	/*
+ 	 * TEST_BYPASS  on
+@@ -433,7 +614,7 @@ static int mt9t112_init_pll(const struct i2c_client *client)
+ 	mt9t112_reg_write(ret, client, 0x0014, 0x3046);
+ 	/* JPEG initialization workaround */
+ 	mt9t112_reg_write(ret, client, 0x0016, 0x0400);
+-	mt9t112_reg_write(ret, client, 0x0022, 0x0190);
++	mt9t112_reg_write(ret, client, 0x0022, priv->pll.refcnt);
+ 	mt9t112_reg_write(ret, client, 0x3B84, 0x0212);
+ 
+ 	/* External sensor clock is PLL bypass. */
+@@ -669,8 +850,15 @@ static int mt9t112_auto_focus_trigger(const struct i2c_client *client)
+ 
+ static int mt9t112_init_camera(const struct i2c_client *client)
+ {
++	struct mt9t112_priv *priv = to_mt9t112(client);
+ 	int ret;
+ 
++	/* The reset below clears the settings the controls may have changed. */
++	priv->flip_applied = 0;
++	priv->tp_saved = false;
++
++	ECHECKER(ret, mt9t112_wait_ready(client));
++	ECHECKER(ret, mt9t112_select_pll(priv));
+ 	ECHECKER(ret, mt9t112_reset(client));
+ 	ECHECKER(ret, mt9t112_init_pll(client));
+ 	ECHECKER(ret, mt9t112_init_setting(client));
+@@ -713,175 +901,451 @@ static int mt9t112_init_camera(const struct i2c_client *client)
+ 	return ret;
+ }
+ 
+-/************************************************************************
+- *			v4l2_subdev_core_ops
+- ***********************************************************************/
+ 
+-#ifdef CONFIG_VIDEO_ADV_DEBUG
+-static int mt9t112_g_register(struct v4l2_subdev *sd,
+-			      struct v4l2_dbg_register *reg)
++static int mt9t112_set_orientation(const struct i2c_client *client, int flip)
+ {
+-	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	int                ret;
++	int ret;
+ 
+-	reg->size = 2;
+-	mt9t112_reg_read(ret, client, reg->reg);
++	/*
++	 * flip = 0 normal, 1 horizontal mirror, 2 vertical flip, 3 rotate 180.
++	 * The pixel order register follows the read mode (the old out of tree
++	 * driver kept the Bayer phase right this way, UNVERIFIED).
++	 */
++	flip &= 0x3;
+ 
+-	reg->val = (__u64)ret;
++	/* CAM1_CTX_A_READ_MODE and CAM1_CTX_A_PIXEL_ORDER. */
++	mt9t112_mcu_mask_set(ret, client, VAR(18, 0x000C), 0x0003, flip);
++	mt9t112_mcu_write(ret, client, VAR8(18, 0x000E), flip);
+ 
+-	return 0;
++	/* CAM1_CTX_B_READ_MODE and CAM1_CTX_B_PIXEL_ORDER. */
++	mt9t112_mcu_mask_set(ret, client, VAR(18, 0x0054), 0x0003, flip);
++	mt9t112_mcu_write(ret, client, VAR8(18, 0x0056), flip);
++
++	/* SEQ_CMD: refresh. */
++	mt9t112_mcu_write(ret, client, VAR8(1, 0), 0x06);
++
++	return ret;
+ }
+ 
+-static int mt9t112_s_register(struct v4l2_subdev *sd,
+-			      const struct v4l2_dbg_register *reg)
++/*
++ * The colour bar uses VAR(24, 0x03) = 0x100 and VAR(24, 0x25) = 0x0B (from the
++ * out of tree driver's TEST_PATTERN option, whose comment doubts the second
++ * value). The power-on values are not documented, so they are read back
++ * before the first change and restored when the pattern is switched off.
++ */
++static int mt9t112_set_test_pattern(struct mt9t112_priv *priv, int val)
+ {
+-	struct i2c_client *client = v4l2_get_subdevdata(sd);
++	const struct i2c_client *client = priv->client;
+ 	int ret;
+ 
+-	mt9t112_reg_write(ret, client, reg->reg, reg->val);
++	if (val) {
++		if (!priv->tp_saved) {
++			ret = __mt9t112_mcu_read(client, VAR(24, 0x03));
++			if (ret < 0)
++				return ret;
++			priv->tp_saved_val[0] = ret;
++
++			ret = __mt9t112_mcu_read(client, VAR(24, 0x25));
++			if (ret < 0)
++				return ret;
++			priv->tp_saved_val[1] = ret;
++
++			priv->tp_saved = true;
++		}
++
++		mt9t112_mcu_write(ret, client, VAR(24, 0x03), 0x100);
++		mt9t112_mcu_write(ret, client, VAR(24, 0x25), 0x0B);
++	} else if (priv->tp_saved) {
++		mt9t112_mcu_write(ret, client, VAR(24, 0x03),
++				  priv->tp_saved_val[0]);
++		mt9t112_mcu_write(ret, client, VAR(24, 0x25),
++				  priv->tp_saved_val[1]);
++		priv->tp_saved = false;
++	} else {
++		return 0;
++	}
++
++	/* SEQ_CMD: refresh. */
++	mt9t112_mcu_write(ret, client, VAR8(1, 0), 0x06);
+ 
+ 	return ret;
+ }
+-#endif
+ 
++/************************************************************************
++ *			power management
++ ***********************************************************************/
+ static int mt9t112_power_on(struct mt9t112_priv *priv)
+ {
++	struct device *dev = &priv->client->dev;
+ 	int ret;
+ 
+-	ret = clk_prepare_enable(priv->clk);
+-	if (ret)
++	ret = regulator_bulk_enable(ARRAY_SIZE(priv->supplies), priv->supplies);
++	if (ret) {
++		dev_err(dev, "Failed to enable the regulators: %d\n", ret);
+ 		return ret;
++	}
+ 
+-	if (priv->standby_gpio) {
+-		gpiod_set_value(priv->standby_gpio, 0);
+-		msleep(100);
++	ret = clk_prepare_enable(priv->clk);
++	if (ret) {
++		dev_err(dev, "Failed to enable the clock: %d\n", ret);
++		goto err_regulators;
+ 	}
+ 
++	gpiod_set_value_cansleep(priv->standby_gpio, 0);
++	gpiod_set_value_cansleep(priv->reset_gpio, 0);
++
++	if (priv->standby_gpio || priv->reset_gpio)
++		msleep(MT9T112_POWER_UP_DELAY_GPIO_MS);
++	else
++		msleep(MT9T112_POWER_UP_DELAY_MS);
++
+ 	return 0;
++
++err_regulators:
++	regulator_bulk_disable(ARRAY_SIZE(priv->supplies), priv->supplies);
++
++	return ret;
+ }
+ 
+-static int mt9t112_power_off(struct mt9t112_priv *priv)
++static void mt9t112_power_off(struct mt9t112_priv *priv)
+ {
++	gpiod_set_value_cansleep(priv->standby_gpio, 1);
+ 	clk_disable_unprepare(priv->clk);
+-	if (priv->standby_gpio) {
+-		gpiod_set_value(priv->standby_gpio, 1);
+-		msleep(100);
++	gpiod_set_value_cansleep(priv->reset_gpio, 1);
++	regulator_bulk_disable(ARRAY_SIZE(priv->supplies), priv->supplies);
++}
++
++static int mt9t112_runtime_resume(struct device *dev)
++{
++	struct mt9t112_priv *priv = to_mt9t112(to_i2c_client(dev));
++
++	return mt9t112_power_on(priv);
++}
++
++static int mt9t112_runtime_suspend(struct device *dev)
++{
++	struct mt9t112_priv *priv = to_mt9t112(to_i2c_client(dev));
++
++	mt9t112_power_off(priv);
++
++	return 0;
++}
++
++static DEFINE_RUNTIME_DEV_PM_OPS(mt9t112_pm_ops, mt9t112_runtime_suspend,
++				 mt9t112_runtime_resume, NULL);
++
++/************************************************************************
++ *			v4l2_ctrl_ops
++ ***********************************************************************/
++static int mt9t112_s_ctrl(struct v4l2_ctrl *ctrl)
++{
++	struct mt9t112_priv *priv =
++		container_of(ctrl->handler, struct mt9t112_priv, hdl);
++	struct device *dev = &priv->client->dev;
++	unsigned int flip;
++	int ret = 0;
++
++	/*
++	 * The values are applied when streaming starts, the sensor is
++	 * initialised then. Only a powered sensor takes them live.
++	 */
++	if (!pm_runtime_get_if_in_use(dev))
++		return 0;
++
++	switch (ctrl->id) {
++	case V4L2_CID_HFLIP:
++	case V4L2_CID_VFLIP:
++		flip = priv->hflip->val | (priv->vflip->val << 1);
++		if (flip != priv->flip_applied) {
++			ret = mt9t112_set_orientation(priv->client, flip);
++			if (!ret)
++				priv->flip_applied = flip;
++		}
++		break;
++	case V4L2_CID_TEST_PATTERN:
++		ret = mt9t112_set_test_pattern(priv, ctrl->val);
++		break;
++	default:
++		break;
++	}
++
++	pm_runtime_put_autosuspend(dev);
++
++	return ret;
++}
++
++static const struct v4l2_ctrl_ops mt9t112_ctrl_ops = {
++	.s_ctrl = mt9t112_s_ctrl,
++};
++
++static int mt9t112_init_controls(struct mt9t112_priv *priv)
++{
++	struct v4l2_ctrl_handler *hdl = &priv->hdl;
++	struct v4l2_fwnode_device_properties props;
++	struct v4l2_ctrl *ctrl;
++	int ret;
++
++	v4l2_ctrl_handler_init(hdl, 8);
++
++	priv->hflip = v4l2_ctrl_new_std(hdl, &mt9t112_ctrl_ops,
++					V4L2_CID_HFLIP, 0, 1, 1, 0);
++	priv->vflip = v4l2_ctrl_new_std(hdl, &mt9t112_ctrl_ops,
++					V4L2_CID_VFLIP, 0, 1, 1, 0);
++	v4l2_ctrl_cluster(2, &priv->hflip);
++
++	priv->test_pattern =
++		v4l2_ctrl_new_std_menu_items(hdl, &mt9t112_ctrl_ops,
++					     V4L2_CID_TEST_PATTERN,
++					     ARRAY_SIZE(mt9t112_test_pattern_menu) - 1,
++					     0, 0, mt9t112_test_pattern_menu);
++
++	/*
++	 * The bus carries two clocks per pixel. The values are only known when
++	 * the PLL settings were derived from the clock rate.
++	 */
++	if (priv->pll.pclk) {
++		priv->link_freq = priv->pll.pclk;
++		ctrl = v4l2_ctrl_new_int_menu(hdl, &mt9t112_ctrl_ops,
++					      V4L2_CID_LINK_FREQ, 0, 0,
++					      &priv->link_freq);
++		if (ctrl)
++			ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
++
++		v4l2_ctrl_new_std(hdl, &mt9t112_ctrl_ops, V4L2_CID_PIXEL_RATE,
++				  priv->pll.pclk / 2, priv->pll.pclk / 2, 1,
++				  priv->pll.pclk / 2);
++	}
++
++	if (dev_fwnode(&priv->client->dev)) {
++		ret = v4l2_fwnode_device_parse(&priv->client->dev, &props);
++		if (ret)
++			goto err_free;
++
++		ret = v4l2_ctrl_new_fwnode_properties(hdl, &mt9t112_ctrl_ops,
++						      &props);
++		if (ret)
++			goto err_free;
++	}
++
++	if (hdl->error) {
++		ret = hdl->error;
++		goto err_free;
+ 	}
+ 
+ 	return 0;
++
++err_free:
++	v4l2_ctrl_handler_free(hdl);
++
++	return ret;
+ }
+ 
+-static int mt9t112_s_power(struct v4l2_subdev *sd, int on)
++/************************************************************************
++ *			v4l2_subdev_core_ops
++ ***********************************************************************/
++
++#ifdef CONFIG_VIDEO_ADV_DEBUG
++static int mt9t112_g_register(struct v4l2_subdev *sd,
++			      struct v4l2_dbg_register *reg)
+ {
+ 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct mt9t112_priv *priv = to_mt9t112(client);
++	int ret;
+ 
+-	return on ? mt9t112_power_on(priv) :
+-		    mt9t112_power_off(priv);
++	ret = pm_runtime_resume_and_get(&client->dev);
++	if (ret < 0)
++		return ret;
++
++	ret = __mt9t112_reg_read(client, reg->reg);
++
++	pm_runtime_put_autosuspend(&client->dev);
++
++	if (ret < 0)
++		return ret;
++
++	reg->size = 2;
++	reg->val = (__u64)ret;
++
++	return 0;
+ }
+ 
++static int mt9t112_s_register(struct v4l2_subdev *sd,
++			      const struct v4l2_dbg_register *reg)
++{
++	struct i2c_client *client = v4l2_get_subdevdata(sd);
++	int ret;
++
++	ret = pm_runtime_resume_and_get(&client->dev);
++	if (ret < 0)
++		return ret;
++
++	ret = __mt9t112_reg_write(client, reg->reg, reg->val);
++
++	pm_runtime_put_autosuspend(&client->dev);
++
++	return ret;
++}
++#endif
++
+ static const struct v4l2_subdev_core_ops mt9t112_subdev_core_ops = {
+ #ifdef CONFIG_VIDEO_ADV_DEBUG
+ 	.g_register	= mt9t112_g_register,
+ 	.s_register	= mt9t112_s_register,
+ #endif
+-	.s_power	= mt9t112_s_power,
++	.subscribe_event = v4l2_ctrl_subdev_subscribe_event,
++	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
+ };
+ 
+ /************************************************************************
+  *			v4l2_subdev_video_ops
+  **********************************************************************/
+-static int mt9t112_s_stream(struct v4l2_subdev *sd, int enable)
++static int mt9t112_configure(struct mt9t112_priv *priv,
++			     const struct mt9t112_format *fmt,
++			     const struct v4l2_mbus_framefmt *mf)
+ {
+-	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct mt9t112_priv *priv = to_mt9t112(client);
+-	int ret = 0;
+-
+-	if (!enable) {
+-		/* FIXME
+-		 *
+-		 * If user selected large output size, and used it long time,
+-		 * mt9t112 camera will be very warm.
+-		 *
+-		 * But current driver can not stop mt9t112 camera.
+-		 * So, set small size here to solve this problem.
+-		 */
+-		mt9t112_set_a_frame_size(client, VGA_WIDTH, VGA_HEIGHT);
+-		return ret;
+-	}
+-
+-	if (!priv->init_done) {
+-		u16 param = MT9T112_FLAG_PCLK_RISING_EDGE & priv->info->flags ?
+-			    0x0001 : 0x0000;
+-
+-		ECHECKER(ret, mt9t112_init_camera(client));
++	const struct i2c_client *client = priv->client;
++	int ret;
+ 
+-		/* Invert PCLK (Data sampled on falling edge of pixclk). */
+-		mt9t112_reg_write(ret, client, 0x3C20, param);
++	/*
++	 * The sensor is initialised completely at every stream start: it may
++	 * have lost its state in runtime suspend.
++	 */
++	ECHECKER(ret, mt9t112_init_camera(client));
+ 
+-		mdelay(5);
++	/* Invert PCLK (Data sampled on falling edge of pixclk). */
++	mt9t112_reg_write(ret, client, 0x3C20, priv->pclk_rising ? 0x0001 : 0x0000);
+ 
+-		priv->init_done = true;
+-	}
++	mdelay(5);
+ 
+-	mt9t112_mcu_write(ret, client, VAR(26, 7), priv->format->fmt);
+-	mt9t112_mcu_write(ret, client, VAR(26, 9), priv->format->order);
++	mt9t112_mcu_write(ret, client, VAR(26, 7), fmt->fmt);
++	mt9t112_mcu_write(ret, client, VAR(26, 9), fmt->order);
+ 	mt9t112_mcu_write(ret, client, VAR8(1, 0), 0x06);
+ 
+-	mt9t112_set_a_frame_size(client, priv->frame.width, priv->frame.height);
++	ECHECKER(ret, mt9t112_set_a_frame_size(client, mf->width, mf->height));
++
++	/* Apply the flip and test pattern controls. */
++	ECHECKER(ret, __v4l2_ctrl_handler_setup(&priv->hdl));
+ 
+ 	ECHECKER(ret, mt9t112_auto_focus_trigger(client));
+ 
+-	dev_dbg(&client->dev, "format : %d\n", priv->format->code);
+-	dev_dbg(&client->dev, "size   : %d x %d\n",
+-		priv->frame.width,
+-		priv->frame.height);
++	dev_dbg(&client->dev, "format : %d\n", fmt->code);
++	dev_dbg(&client->dev, "size   : %d x %d\n", mf->width, mf->height);
+ 
+ 	CLOCK_INFO(client, EXT_CLOCK);
+ 
+ 	return ret;
+ }
+ 
+-static int mt9t112_set_params(struct mt9t112_priv *priv,
+-			      const struct v4l2_rect *rect,
+-			      u32 code)
++static int mt9t112_start_streaming(struct mt9t112_priv *priv,
++				   struct v4l2_subdev_state *state)
+ {
+-	int i;
+-
+-	/*
+-	 * get color format
+-	 */
+-	for (i = 0; i < priv->num_formats; i++)
+-		if (mt9t112_cfmts[i].code == code)
+-			break;
++	const struct v4l2_mbus_framefmt *mf;
++	const struct mt9t112_format *fmt;
++	int ret;
+ 
+-	if (i == priv->num_formats)
++	mf = v4l2_subdev_state_get_format(state, 0);
++	fmt = mt9t112_find_format(priv, mf->code);
++	if (!fmt)
+ 		return -EINVAL;
+ 
+-	priv->frame = *rect;
++	ret = pm_runtime_resume_and_get(&priv->client->dev);
++	if (ret < 0)
++		return ret;
++
++	ret = mt9t112_configure(priv, fmt, mf);
++	if (ret < 0) {
++		pm_runtime_put_autosuspend(&priv->client->dev);
++		return ret;
++	}
++
++	priv->streaming = true;
++
++	return 0;
++}
++
++static void mt9t112_stop_streaming(struct mt9t112_priv *priv)
++{
++	priv->streaming = false;
+ 
+ 	/*
+-	 * frame size check
++	 * FIXME
++	 *
++	 * If user selected large output size, and used it long time,
++	 * mt9t112 camera will be very warm.
++	 *
++	 * But current driver can not stop mt9t112 camera.
++	 * So, set small size here to solve this problem. The sensor is powered
++	 * off after the autosuspend delay when runtime PM is available, errors
++	 * are not interesting here.
+ 	 */
+-	v4l_bound_align_image(&priv->frame.width, 0, MAX_WIDTH, 0,
+-			      &priv->frame.height, 0, MAX_HEIGHT, 0, 0);
++	mt9t112_set_a_frame_size(priv->client, VGA_WIDTH, VGA_HEIGHT);
++
++	pm_runtime_put_autosuspend(&priv->client->dev);
++}
++
++static int mt9t112_s_stream(struct v4l2_subdev *sd, int enable)
++{
++	struct mt9t112_priv *priv = sd_to_mt9t112(sd);
++	struct v4l2_subdev_state *state;
++	int ret = 0;
++
++	/* The state lock is the control handler lock. */
++	state = v4l2_subdev_lock_and_get_active_state(sd);
++
++	if (enable)
++		ret = mt9t112_start_streaming(priv, state);
++	else if (priv->streaming)
++		mt9t112_stop_streaming(priv);
+ 
+-	priv->format = mt9t112_cfmts + i;
++	v4l2_subdev_unlock_state(state);
++
++	return ret;
++}
++
++/************************************************************************
++ *			v4l2_subdev_pad_ops
++ **********************************************************************/
++static void mt9t112_update_crop(struct v4l2_rect *crop,
++				const struct v4l2_mbus_framefmt *mf)
++{
++	crop->width = mf->width;
++	crop->height = mf->height;
++	crop->left = (MAX_WIDTH - mf->width) / 2;
++	crop->top = (MAX_HEIGHT - mf->height) / 2;
++}
++
++static int mt9t112_init_state(struct v4l2_subdev *sd,
++			      struct v4l2_subdev_state *state)
++{
++	struct mt9t112_priv *priv = sd_to_mt9t112(sd);
++	const struct mt9t112_format *fmt;
++	struct v4l2_mbus_framefmt *mf;
++
++	/* VGA YUYV, or the first format when the chip has no YUYV. */
++	fmt = mt9t112_find_format(priv, MEDIA_BUS_FMT_YUYV8_2X8);
++	if (!fmt)
++		fmt = &mt9t112_cfmts[0];
++
++	mf = v4l2_subdev_state_get_format(state, 0);
++	mf->width = mt9t112_sizes[0].width;
++	mf->height = mt9t112_sizes[0].height;
++	mf->code = fmt->code;
++	mf->colorspace = fmt->colorspace;
++	mf->field = V4L2_FIELD_NONE;
++	mf->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
++	mf->quantization = V4L2_QUANTIZATION_DEFAULT;
++	mf->xfer_func = V4L2_XFER_FUNC_DEFAULT;
++
++	mt9t112_update_crop(v4l2_subdev_state_get_crop(state, 0), mf);
+ 
+ 	return 0;
+ }
+ 
+ static int mt9t112_get_selection(struct v4l2_subdev *sd,
+-				 struct v4l2_subdev_state *sd_state,
++				 struct v4l2_subdev_state *state,
+ 				 struct v4l2_subdev_selection *sel)
+ {
+-	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct mt9t112_priv *priv = to_mt9t112(client);
+-
+-	if (sel->which != V4L2_SUBDEV_FORMAT_ACTIVE)
+-		return -EINVAL;
+-
+ 	switch (sel->target) {
++	case V4L2_SEL_TGT_NATIVE_SIZE:
+ 	case V4L2_SEL_TGT_CROP_BOUNDS:
+ 		sel->r.left = 0;
+ 		sel->r.top = 0;
+@@ -889,109 +1353,98 @@ static int mt9t112_get_selection(struct v4l2_subdev *sd,
+ 		sel->r.height = MAX_HEIGHT;
+ 		return 0;
+ 	case V4L2_SEL_TGT_CROP:
+-		sel->r = priv->frame;
++		sel->r = *v4l2_subdev_state_get_crop(state, 0);
+ 		return 0;
+ 	default:
+ 		return -EINVAL;
+ 	}
+ }
+ 
++/*
++ * The crop rectangle is the centred window of the output size, the sensor does
++ * not scale. It follows the format and cannot be set independently, so a set
++ * request reports the rectangle that is in effect.
++ */
+ static int mt9t112_set_selection(struct v4l2_subdev *sd,
+-				 struct v4l2_subdev_state *sd_state,
++				 struct v4l2_subdev_state *state,
+ 				 struct v4l2_subdev_selection *sel)
+ {
+-	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct mt9t112_priv *priv = to_mt9t112(client);
+-	const struct v4l2_rect *rect = &sel->r;
+-
+-	if (sel->which != V4L2_SUBDEV_FORMAT_ACTIVE ||
+-	    sel->target != V4L2_SEL_TGT_CROP)
++	if (sel->target != V4L2_SEL_TGT_CROP)
+ 		return -EINVAL;
+ 
+-	return mt9t112_set_params(priv, rect, priv->format->code);
+-}
+-
+-static int mt9t112_get_fmt(struct v4l2_subdev *sd,
+-			   struct v4l2_subdev_state *sd_state,
+-			   struct v4l2_subdev_format *format)
+-{
+-	struct v4l2_mbus_framefmt *mf = &format->format;
+-	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct mt9t112_priv *priv = to_mt9t112(client);
+-
+-	if (format->pad)
+-		return -EINVAL;
+-
+-	mf->width	= priv->frame.width;
+-	mf->height	= priv->frame.height;
+-	mf->colorspace	= priv->format->colorspace;
+-	mf->code	= priv->format->code;
+-	mf->field	= V4L2_FIELD_NONE;
++	sel->r = *v4l2_subdev_state_get_crop(state, 0);
+ 
+ 	return 0;
+ }
+ 
+-static int mt9t112_s_fmt(struct v4l2_subdev *sd,
+-			 struct v4l2_mbus_framefmt *mf)
+-{
+-	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct mt9t112_priv *priv = to_mt9t112(client);
+-	struct v4l2_rect rect = {
+-		.width = mf->width,
+-		.height = mf->height,
+-		.left = priv->frame.left,
+-		.top = priv->frame.top,
+-	};
+-	int ret;
+-
+-	ret = mt9t112_set_params(priv, &rect, mf->code);
+-
+-	if (!ret)
+-		mf->colorspace = priv->format->colorspace;
+-
+-	return ret;
+-}
+-
+ static int mt9t112_set_fmt(struct v4l2_subdev *sd,
+-			   struct v4l2_subdev_state *sd_state,
++			   struct v4l2_subdev_state *state,
+ 			   struct v4l2_subdev_format *format)
+ {
+-	struct i2c_client *client = v4l2_get_subdevdata(sd);
++	struct mt9t112_priv *priv = sd_to_mt9t112(sd);
+ 	struct v4l2_mbus_framefmt *mf = &format->format;
+-	struct mt9t112_priv *priv = to_mt9t112(client);
+-	int i;
++	struct v4l2_subdev_state *locked = NULL;
++	const struct mt9t112_format *fmt;
++	const struct mt9t112_size *size;
++	int ret = 0;
+ 
+ 	if (format->pad)
+ 		return -EINVAL;
+ 
+-	for (i = 0; i < priv->num_formats; i++)
+-		if (mt9t112_cfmts[i].code == mf->code)
+-			break;
++	/*
++	 * Hosts that do not use the subdev state (renesas-ceu) pass no state
++	 * for ACTIVE and a bare TRY state without .sd, which the state
++	 * accessors cannot handle.
++	 */
++	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE && !state) {
++		locked = v4l2_subdev_lock_and_get_active_state(sd);
++		state = locked;
++	}
++	if (!state)
++		return -EINVAL;
+ 
+-	if (i == priv->num_formats) {
+-		mf->code = MEDIA_BUS_FMT_UYVY8_2X8;
+-		mf->colorspace = V4L2_COLORSPACE_JPEG;
+-	} else {
+-		mf->colorspace = mt9t112_cfmts[i].colorspace;
++	/* streaming is protected by the active state lock */
++	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE && priv->streaming) {
++		ret = -EBUSY;
++		goto out;
+ 	}
+ 
+-	v4l_bound_align_image(&mf->width, 0, MAX_WIDTH, 0,
+-			      &mf->height, 0, MAX_HEIGHT, 0, 0);
++	fmt = mt9t112_find_format(priv, mf->code);
++	if (!fmt)
++		fmt = &mt9t112_cfmts[0];
++
++	size = v4l2_find_nearest_size(mt9t112_sizes, ARRAY_SIZE(mt9t112_sizes),
++				      width, height, mf->width, mf->height);
+ 
++	mf->width = size->width;
++	mf->height = size->height;
++	mf->code = fmt->code;
++	mf->colorspace = fmt->colorspace;
+ 	mf->field = V4L2_FIELD_NONE;
++	mf->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
++	mf->quantization = V4L2_QUANTIZATION_DEFAULT;
++	mf->xfer_func = V4L2_XFER_FUNC_DEFAULT;
+ 
+-	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE)
+-		return mt9t112_s_fmt(sd, mf);
++	if (state->sd) {
++		*v4l2_subdev_state_get_format(state, 0) = *mf;
++		mt9t112_update_crop(v4l2_subdev_state_get_crop(state, 0), mf);
++	} else {
++		state->pads[0].format = *mf;
++		mt9t112_update_crop(&state->pads[0].crop, mf);
++	}
+ 
+-	return 0;
++out:
++	if (locked)
++		v4l2_subdev_unlock_state(locked);
++
++	return ret;
+ }
+ 
+ static int mt9t112_enum_mbus_code(struct v4l2_subdev *sd,
+-				  struct v4l2_subdev_state *sd_state,
++				  struct v4l2_subdev_state *state,
+ 				  struct v4l2_subdev_mbus_code_enum *code)
+ {
+-	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct mt9t112_priv *priv = to_mt9t112(client);
++	struct mt9t112_priv *priv = sd_to_mt9t112(sd);
+ 
+ 	if (code->pad || code->index >= priv->num_formats)
+ 		return -EINVAL;
+@@ -1001,16 +1454,37 @@ static int mt9t112_enum_mbus_code(struct v4l2_subdev *sd,
+ 	return 0;
+ }
+ 
++static int mt9t112_enum_frame_size(struct v4l2_subdev *sd,
++				   struct v4l2_subdev_state *state,
++				   struct v4l2_subdev_frame_size_enum *fse)
++{
++	struct mt9t112_priv *priv = sd_to_mt9t112(sd);
++
++	if (fse->pad || fse->index >= ARRAY_SIZE(mt9t112_sizes))
++		return -EINVAL;
++
++	if (!mt9t112_find_format(priv, fse->code))
++		return -EINVAL;
++
++	fse->min_width = mt9t112_sizes[fse->index].width;
++	fse->max_width = fse->min_width;
++	fse->min_height = mt9t112_sizes[fse->index].height;
++	fse->max_height = fse->min_height;
++
++	return 0;
++}
++
+ static const struct v4l2_subdev_video_ops mt9t112_subdev_video_ops = {
+ 	.s_stream	= mt9t112_s_stream,
+ };
+ 
+ static const struct v4l2_subdev_pad_ops mt9t112_subdev_pad_ops = {
+-	.enum_mbus_code	= mt9t112_enum_mbus_code,
+-	.get_selection	= mt9t112_get_selection,
+-	.set_selection	= mt9t112_set_selection,
+-	.get_fmt	= mt9t112_get_fmt,
+-	.set_fmt	= mt9t112_set_fmt,
++	.enum_mbus_code		= mt9t112_enum_mbus_code,
++	.enum_frame_size	= mt9t112_enum_frame_size,
++	.get_selection		= mt9t112_get_selection,
++	.set_selection		= mt9t112_set_selection,
++	.get_fmt		= v4l2_subdev_get_fmt,
++	.set_fmt		= mt9t112_set_fmt,
+ };
+ 
+ /************************************************************************
+@@ -1022,19 +1496,29 @@ static const struct v4l2_subdev_ops mt9t112_subdev_ops = {
+ 	.pad	= &mt9t112_subdev_pad_ops,
+ };
+ 
+-static int mt9t112_camera_probe(struct i2c_client *client)
+-{
+-	struct mt9t112_priv *priv = to_mt9t112(client);
+-	const char          *devname;
+-	int                  chipid;
+-	int		     ret;
++static const struct v4l2_subdev_internal_ops mt9t112_internal_ops = {
++	.init_state = mt9t112_init_state,
++};
+ 
+-	ret = mt9t112_s_power(&priv->subdev, 1);
+-	if (ret < 0)
+-		return ret;
++static const struct media_entity_operations mt9t112_entity_ops = {
++	.link_validate = v4l2_subdev_link_validate,
++};
+ 
+-	/* Check and show chip ID. */
+-	mt9t112_reg_read(chipid, client, 0x0000);
++/**
++ * mt9t112_identify() - Read the chip ID and set up the supported formats
++ * @priv: the sensor, powered on
++ *
++ * Return: 0 on success, a negative error code otherwise.
++ */
++static int mt9t112_identify(struct mt9t112_priv *priv)
++{
++	struct device *dev = &priv->client->dev;
++	const char *devname;
++	int chipid;
++
++	chipid = mt9t112_wait_ready(priv->client);
++	if (chipid < 0)
++		return dev_err_probe(dev, chipid, "Failed to read the chip ID\n");
+ 
+ 	switch (chipid) {
+ 	case 0x2680:
+@@ -1046,65 +1530,195 @@ static int mt9t112_camera_probe(struct i2c_client *client)
+ 		priv->num_formats = ARRAY_SIZE(mt9t112_cfmts);
+ 		break;
+ 	default:
+-		dev_err(&client->dev, "Product ID error %04x\n", chipid);
+-		ret = -ENODEV;
+-		goto done;
++		dev_err(dev, "Product ID error %04x\n", chipid);
++		return -ENODEV;
+ 	}
+ 
+-	dev_info(&client->dev, "%s chip ID %04x\n", devname, chipid);
++	dev_info(dev, "%s chip ID %04x\n", devname, chipid);
+ 
+-done:
+-	mt9t112_s_power(&priv->subdev, 0);
++	return 0;
++}
+ 
+-	return ret;
++static int mt9t112_parse_fwnode(struct mt9t112_priv *priv)
++{
++	struct device *dev = &priv->client->dev;
++	struct v4l2_fwnode_endpoint ep = {
++		.bus_type = V4L2_MBUS_PARALLEL,
++	};
++	struct fwnode_handle *endpoint;
++	int ret;
++
++	endpoint = fwnode_graph_get_endpoint_by_id(dev_fwnode(dev), 0, 0, 0);
++	if (!endpoint)
++		return dev_err_probe(dev, -EINVAL, "Missing endpoint\n");
++
++	ret = v4l2_fwnode_endpoint_parse(endpoint, &ep);
++	fwnode_handle_put(endpoint);
++	if (ret)
++		return dev_err_probe(dev, ret, "Invalid endpoint\n");
++
++	if (ep.bus.parallel.bus_width && ep.bus.parallel.bus_width != 8)
++		return dev_err_probe(dev, -EINVAL,
++				     "Unsupported bus width %u\n",
++				     ep.bus.parallel.bus_width);
++
++	priv->pclk_rising = ep.bus.parallel.flags & V4L2_MBUS_PCLK_SAMPLE_RISING;
++
++	return 0;
+ }
+ 
+ static int mt9t112_probe(struct i2c_client *client)
+ {
++	struct device *dev = &client->dev;
+ 	struct mt9t112_priv *priv;
++	struct v4l2_subdev *sd;
+ 	int ret;
+ 
+-	if (!client->dev.platform_data) {
+-		dev_err(&client->dev, "mt9t112: missing platform data!\n");
+-		return -EINVAL;
+-	}
+-
+-	priv = devm_kzalloc(&client->dev, sizeof(*priv), GFP_KERNEL);
++	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
+ 	if (!priv)
+ 		return -ENOMEM;
+ 
+-	priv->info = client->dev.platform_data;
+-	priv->init_done = false;
++	priv->client = client;
++	priv->info = dev->platform_data;
++
++	if (dev_fwnode(dev)) {
++		ret = mt9t112_parse_fwnode(priv);
++		if (ret)
++			return ret;
++	} else if (priv->info) {
++		priv->pclk_rising = priv->info->flags &
++				    MT9T112_FLAG_PCLK_RISING_EDGE;
++	} else {
++		return dev_err_probe(dev, -EINVAL, "missing platform data!\n");
++	}
+ 
+-	v4l2_i2c_subdev_init(&priv->subdev, client, &mt9t112_subdev_ops);
++	sd = &priv->subdev;
++	v4l2_i2c_subdev_init(sd, client, &mt9t112_subdev_ops);
+ 
+-	priv->clk = devm_v4l2_sensor_clk_get(&client->dev, "extclk");
+-	if (PTR_ERR(priv->clk) == -ENOENT)
++	/* The platform data user names its clock, the device tree one not. */
++	priv->clk = devm_v4l2_sensor_clk_get(dev, priv->info ? "extclk" : NULL);
++	if (priv->info && PTR_ERR(priv->clk) == -ENOENT)
+ 		priv->clk = NULL;
+ 	else if (IS_ERR(priv->clk))
+-		return dev_err_probe(&client->dev, PTR_ERR(priv->clk),
+-				     "Unable to get clock \"extclk\"\n");
++		return dev_err_probe(dev, PTR_ERR(priv->clk),
++				     "Unable to get the clock\n");
+ 
+-	priv->standby_gpio = devm_gpiod_get_optional(&client->dev, "standby",
++	priv->standby_gpio = devm_gpiod_get_optional(dev, "standby",
+ 						     GPIOD_OUT_HIGH);
+-	if (IS_ERR(priv->standby_gpio)) {
+-		dev_err(&client->dev, "Unable to get gpio \"standby\"\n");
+-		return PTR_ERR(priv->standby_gpio);
+-	}
++	if (IS_ERR(priv->standby_gpio))
++		return dev_err_probe(dev, PTR_ERR(priv->standby_gpio),
++				     "Unable to get gpio \"standby\"\n");
++
++	priv->reset_gpio = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(priv->reset_gpio))
++		return dev_err_probe(dev, PTR_ERR(priv->reset_gpio),
++				     "Unable to get gpio \"reset\"\n");
++
++	priv->supplies[0].supply = "vddio";
++	priv->supplies[1].supply = "vdd";
++	priv->supplies[2].supply = "vaa";
++	ret = devm_regulator_bulk_get(dev, ARRAY_SIZE(priv->supplies),
++				      priv->supplies);
++	if (ret)
++		return dev_err_probe(dev, ret, "Failed to get the regulators\n");
+ 
+-	ret = mt9t112_camera_probe(client);
++	/*
++	 * The driver supports runtime PM, but needs to work when runtime PM is
++	 * disabled in the kernel. Power the sensor on manually to reach the
++	 * same state as if it was resumed through runtime PM.
++	 */
++	ret = mt9t112_power_on(priv);
+ 	if (ret)
+ 		return ret;
+ 
+-	return v4l2_async_register_subdev(&priv->subdev);
++	ret = mt9t112_identify(priv);
++	if (ret)
++		goto err_power_off;
++
++	/* Reject an unsupported clock rate early. */
++	ret = mt9t112_select_pll(priv);
++	if (ret)
++		goto err_power_off;
++
++	/*
++	 * Enable runtime PM with autosuspend. The device has been powered on
++	 * manually, mark it as active and increase the usage count without
++	 * resuming it.
++	 */
++	pm_runtime_set_active(dev);
++	pm_runtime_get_noresume(dev);
++	pm_runtime_enable(dev);
++	pm_runtime_set_autosuspend_delay(dev, MT9T112_AUTOSUSPEND_DELAY_MS);
++	pm_runtime_use_autosuspend(dev);
++
++	ret = mt9t112_init_controls(priv);
++	if (ret)
++		goto err_pm;
++
++	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
++	sd->internal_ops = &mt9t112_internal_ops;
++	sd->ctrl_handler = &priv->hdl;
++	sd->state_lock = priv->hdl.lock;
++
++	sd->entity.function = MEDIA_ENT_F_CAM_SENSOR;
++	sd->entity.ops = &mt9t112_entity_ops;
++	priv->pad.flags = MEDIA_PAD_FL_SOURCE;
++	ret = media_entity_pads_init(&sd->entity, 1, &priv->pad);
++	if (ret)
++		goto err_ctrls;
++
++	ret = v4l2_subdev_init_finalize(sd);
++	if (ret)
++		goto err_entity;
++
++	ret = v4l2_async_register_subdev(sd);
++	if (ret)
++		goto err_cleanup;
++
++	/*
++	 * Decrease the PM usage count. The device is suspended after the
++	 * autosuspend delay, turning the power off.
++	 */
++	pm_runtime_put_autosuspend(dev);
++
++	return 0;
++
++err_cleanup:
++	v4l2_subdev_cleanup(sd);
++err_entity:
++	media_entity_cleanup(&sd->entity);
++err_ctrls:
++	v4l2_ctrl_handler_free(&priv->hdl);
++err_pm:
++	pm_runtime_disable(dev);
++	pm_runtime_put_noidle(dev);
++	pm_runtime_set_suspended(dev);
++err_power_off:
++	mt9t112_power_off(priv);
++
++	return ret;
+ }
+ 
+ static void mt9t112_remove(struct i2c_client *client)
+ {
+ 	struct mt9t112_priv *priv = to_mt9t112(client);
++	struct v4l2_subdev *sd = &priv->subdev;
++	struct device *dev = &client->dev;
+ 
+-	clk_disable_unprepare(priv->clk);
+-	v4l2_async_unregister_subdev(&priv->subdev);
++	v4l2_async_unregister_subdev(sd);
++	v4l2_subdev_cleanup(sd);
++	media_entity_cleanup(&sd->entity);
++	v4l2_ctrl_handler_free(&priv->hdl);
++
++	/*
++	 * Disable runtime PM. In case runtime PM is disabled in the kernel,
++	 * or the sensor was still streaming, make sure to turn power off
++	 * manually.
++	 */
++	pm_runtime_disable(dev);
++	if (!pm_runtime_status_suspended(dev))
++		mt9t112_power_off(priv);
++	pm_runtime_set_suspended(dev);
+ }
+ 
+ static const struct i2c_device_id mt9t112_id[] = {
+@@ -1113,9 +1727,18 @@ static const struct i2c_device_id mt9t112_id[] = {
+ };
+ MODULE_DEVICE_TABLE(i2c, mt9t112_id);
+ 
++static const struct of_device_id mt9t112_of_match[] = {
++	{ .compatible = "aptina,mt9t111" },
++	{ .compatible = "aptina,mt9t112" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, mt9t112_of_match);
++
+ static struct i2c_driver mt9t112_i2c_driver = {
+ 	.driver = {
+ 		.name = "mt9t112",
++		.of_match_table = mt9t112_of_match,
++		.pm = pm_ptr(&mt9t112_pm_ops),
+ 	},
+ 	.probe    = mt9t112_probe,
+ 	.remove   = mt9t112_remove,
+diff --git a/include/media/i2c/mt9t112.h b/include/media/i2c/mt9t112.h
+index 825b4a169..e50c33b51 100644
+--- a/include/media/i2c/mt9t112.h
++++ b/include/media/i2c/mt9t112.h
+@@ -8,6 +8,9 @@
+ #ifndef __MT9T112_H__
+ #define __MT9T112_H__
+ 
++#include <linux/bits.h>
++#include <linux/types.h>
++
+ struct mt9t112_pll_divider {
+ 	u8 m, n;
+ 	u8 p1, p2, p3, p4, p5, p6, p7;
+@@ -16,7 +19,11 @@ struct mt9t112_pll_divider {
+ /**
+  * struct mt9t112_platform_data - mt9t112 driver interface
+  * @flags:			Sensor media bus configuration.
+- * @divider:			Sensor PLL configuration
++ * @divider:			Sensor PLL configuration. Only used when the
++ *				external clock rate is not one that the driver
++ *				knows (24 MHz and 32 MHz) or when there is no
++ *				clock: the driver otherwise selects the PLL
++ *				settings from the clock rate.
+  */
+ struct mt9t112_platform_data {
+ #define MT9T112_FLAG_PCLK_RISING_EDGE	BIT(0)

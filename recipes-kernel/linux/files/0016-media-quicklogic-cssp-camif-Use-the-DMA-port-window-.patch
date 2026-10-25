@@ -1,0 +1,153 @@
+From 8e7799a5c134157db112c7e1fe2a7a66c43cdde3 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 05:25:03 +0100
+Subject: [PATCH] media: quicklogic: cssp-camif: Use the DMA port window when
+ available
+
+On bridge revisions above 3 each DMA request moves 128 bytes, which the
+bridge serves at incrementing addresses of its data port. When the DMA
+engine reports a max_src_port_window_size large enough for one request,
+read each request as one 16-bit wide port window instead of a burst of
+words from a fixed address. The fallback stays in use on every other DMA
+engine.
+
+Upstream-Status: Pending
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../media/platform/quicklogic/cssp-camif.c    | 60 +++++++++++++++----
+ 1 file changed, 47 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/media/platform/quicklogic/cssp-camif.c b/drivers/media/platform/quicklogic/cssp-camif.c
+index 75510f50a..0016d7d86 100644
+--- a/drivers/media/platform/quicklogic/cssp-camif.c
++++ b/drivers/media/platform/quicklogic/cssp-camif.c
+@@ -144,8 +144,9 @@
+ #define CSSP_MISALIGN_HISTORY		GENMASK(9, 0)
+ #define CSSP_MISALIGN_HITS		8
+ 
+-/* DMA bandwidth budget in bytes per second (an estimate, not measured) */
++/* Bandwidth budgets in bytes per second (estimates, not measured) */
+ #define CSSP_BUDGET_FALLBACK		18000000ULL
++#define CSSP_BUDGET_WINDOW		40000000ULL
+ 
+ enum cssp_pads {
+ 	CSSP_PAD_SINK,
+@@ -153,6 +154,11 @@ enum cssp_pads {
+ 	CSSP_NUM_PADS,
+ };
+ 
++enum cssp_dma_mode {
++	CSSP_DMA_FALLBACK,
++	CSSP_DMA_WINDOW,
++};
++
+ static bool debug_skip_size_check;
+ module_param(debug_skip_size_check, bool, 0644);
+ MODULE_PARM_DESC(debug_skip_size_check,
+@@ -243,6 +249,7 @@ struct cssp_buffer {
+  * @mclk: optional master clock
+  * @dma: DMA channel
+  * @dmadev: the device that does the DMA (for mapping and the ring)
++ * @dma_mode: fallback (fixed address) or port window
+  * @identified: @rev is valid
+  * @rev: silicon revision
+  * @req_len: bytes per DMA request
+@@ -316,6 +323,7 @@ struct cssp_camif {
+ 	struct clk *mclk;
+ 	struct dma_chan *dma;
+ 	struct device *dmadev;
++	enum cssp_dma_mode dma_mode;
+ 	bool identified;
+ 	u8 rev;
+ 	u32 req_len;
+@@ -641,6 +649,22 @@ static int cssp_identify(struct cssp_camif *c)
+  * DMA
+  */
+ 
++/*
++ * The port window mode reads the data port at incrementing addresses within
++ * each request. It is used only when the DMA driver advertises exactly that
++ * meaning; a slave config that is merely accepted proves nothing, because a
++ * driver that does not implement windows ignores the field.
++ */
++static void cssp_select_dma_mode(struct cssp_camif *c)
++{
++	struct dma_slave_caps caps = {};
++
++	c->dma_mode = CSSP_DMA_FALLBACK;
++	if (!dma_get_slave_caps(c->dma, &caps) &&
++	    caps.max_src_port_window_size >= c->req_len / 2)
++		c->dma_mode = CSSP_DMA_WINDOW;
++}
++
+ static int cssp_ring_alloc(struct cssp_camif *c)
+ {
+ 	c->n = c->sizeimage > CSSP_RING_LARGE_FRAME ? CSSP_RING_SLOTS_LARGE :
+@@ -915,15 +939,21 @@ static int cssp_dma_start(struct cssp_camif *c, bool restart)
+ 	int ret;
+ 
+ 	/*
+-	 * Link validation guarantees this. The DMA driver would otherwise
+-	 * drop the remainder of each period.
++	 * Link validation guarantees this. In the fallback mode the DMA
++	 * driver would otherwise drop the remainder of each period.
+ 	 */
+ 	if (WARN_ON_ONCE(c->sizeimage % c->req_len))
+ 		return -EINVAL;
+ 
+-	/* AB-sync: req_len / 4 words per request, all from the data port */
+-	cfg.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+-	cfg.src_maxburst = c->req_len / 4;
++	if (c->dma_mode == CSSP_DMA_WINDOW) {
++		cfg.src_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;
++		cfg.src_maxburst = 1;
++		cfg.src_port_window_size = c->req_len / 2;
++	} else {
++		/* AB-sync: req_len / 4 words per request, all from the data port */
++		cfg.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
++		cfg.src_maxburst = c->req_len / 4;
++	}
+ 
+ 	ret = dmaengine_slave_config(c->dma, &cfg);
+ 	if (ret) {
+@@ -1247,6 +1277,8 @@ static u64 cssp_source_frame_ns(struct cssp_camif *c)
+ 
+ static void cssp_setup_timing(struct cssp_camif *c)
+ {
++	u64 budget = c->dma_mode == CSSP_DMA_WINDOW ? CSSP_BUDGET_WINDOW :
++						      CSSP_BUDGET_FALLBACK;
+ 	unsigned int ms;
+ 
+ 	c->frame_ns = cssp_source_frame_ns(c);
+@@ -1258,13 +1290,13 @@ static void cssp_setup_timing(struct cssp_camif *c)
+ 	ms = div_u64(CSSP_WD_FRAMES * c->frame_ns, NSEC_PER_MSEC);
+ 	c->wd_timeout = msecs_to_jiffies(max(ms, CSSP_WD_MIN_MS));
+ 
+-	/* the budget is an estimate, to be replaced by a measured rate */
+-	if (div64_u64((u64)c->sizeimage * NSEC_PER_SEC, c->frame_ns) >
+-	    CSSP_BUDGET_FALLBACK)
++	/* the budgets are estimates, to be replaced by measured rates */
++	if (div64_u64((u64)c->sizeimage * NSEC_PER_SEC, c->frame_ns) > budget)
+ 		dev_warn(c->dev,
+-			 "%u bytes per frame every %llu us exceeds the %llu MB/s DMA budget\n",
++			 "%u bytes per frame every %llu us exceeds the %llu MB/s budget of the %s DMA mode\n",
+ 			 c->sizeimage, div_u64(c->frame_ns, NSEC_PER_USEC),
+-			 div_u64(CSSP_BUDGET_FALLBACK, 1000000));
++			 div_u64(budget, 1000000),
++			 c->dma_mode == CSSP_DMA_WINDOW ? "port-window" : "fallback");
+ }
+ 
+ static int cssp_start_streaming(struct vb2_queue *q, unsigned int count)
+@@ -2216,8 +2248,10 @@ static int cssp_probe(struct platform_device *pdev)
+ 		goto err_wq;
+ 	}
+ 
+-	dev_info(dev, "CSSP revision %c%u, %u-byte requests\n",
+-		 'A' + (c->rev >> 4), c->rev & 0xf, c->req_len);
++	cssp_select_dma_mode(c);
++	dev_info(dev, "CSSP revision %c%u, %u-byte requests, %s DMA\n",
++		 'A' + (c->rev >> 4), c->rev & 0xf, c->req_len,
++		 c->dma_mode == CSSP_DMA_WINDOW ? "port-window" : "fallback");
+ 
+ 	pm_runtime_set_active(dev);
+ 	pm_runtime_get_noresume(dev);

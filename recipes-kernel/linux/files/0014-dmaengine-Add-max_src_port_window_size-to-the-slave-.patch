@@ -1,0 +1,79 @@
+From 8000f4c48741fc5e6fbc65fe2879bbbf82c5a2c3 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 05:24:51 +0100
+Subject: [PATCH] dmaengine: Add max_src_port_window_size to the slave
+ capabilities
+
+src_port_window_size has a meaning only for drivers that implement it,
+and a driver that does not simply ignores the field, so a client cannot
+learn from a successful slave config whether its windows will be used.
+
+Add max_src_port_window_size to struct dma_device and struct
+dma_slave_caps and copy it in dma_get_slave_caps(). It is zero unless a
+driver opts in, and a device_caps callback can still override it per
+channel.
+
+Upstream-Status: Pending
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/dma/dmaengine.c   |  1 +
+ include/linux/dmaengine.h | 13 +++++++++++++
+ 2 files changed, 14 insertions(+)
+
+diff --git a/drivers/dma/dmaengine.c b/drivers/dma/dmaengine.c
+index 9049171df..1ab70d36d 100644
+--- a/drivers/dma/dmaengine.c
++++ b/drivers/dma/dmaengine.c
+@@ -600,6 +600,7 @@ int dma_get_slave_caps(struct dma_chan *chan, struct dma_slave_caps *caps)
+ 	caps->max_sg_burst = device->max_sg_burst;
+ 	caps->residue_granularity = device->residue_granularity;
+ 	caps->descriptor_reuse = device->descriptor_reuse;
++	caps->max_src_port_window_size = device->max_src_port_window_size;
+ 	caps->cmd_pause = !!device->device_pause;
+ 	caps->cmd_resume = !!device->device_resume;
+ 	caps->cmd_terminate = !!device->device_terminate_all;
+diff --git a/include/linux/dmaengine.h b/include/linux/dmaengine.h
+index b3d251c97..b232e3770 100644
+--- a/include/linux/dmaengine.h
++++ b/include/linux/dmaengine.h
+@@ -507,6 +507,14 @@ enum dma_residue_granularity {
+  * @residue_granularity: granularity of the reported transfer residue
+  * @descriptor_reuse: if a descriptor can be reused by client and
+  * resubmitted multiple times
++ * @max_src_port_window_size: the largest &dma_slave_config.src_port_window_size,
++ *	in units of src_addr_width, for which a %DMA_DEV_TO_MEM transfer reads
++ *	the device addresses src_addr, src_addr + width, ...,
++ *	src_addr + (window - 1) * width for each request (one hardware event)
++ *	and starts again at src_addr for the next request. Zero means that the
++ *	driver does not implement this meaning of src_port_window_size, which
++ *	is what all drivers report unless they opt in. When non-zero, the burst
++ *	size is window * width and src_maxburst must be 0 or 1.
+  */
+ struct dma_slave_caps {
+ 	u32 src_addr_widths;
+@@ -520,6 +528,7 @@ struct dma_slave_caps {
+ 	bool cmd_terminate;
+ 	enum dma_residue_granularity residue_granularity;
+ 	bool descriptor_reuse;
++	u32 max_src_port_window_size;
+ };
+ 
+ static inline const char *dma_chan_name(struct dma_chan *chan)
+@@ -819,6 +828,9 @@ struct dma_filter {
+  * @descriptor_reuse: a submitted transfer can be resubmitted after completion
+  * @residue_granularity: granularity of the transfer residue reported
+  *	by tx_status
++ * @max_src_port_window_size: the largest source port window, in units of
++ *	src_addr_width, see &dma_slave_caps.max_src_port_window_size; zero
++ *	if the driver does not implement source port windows
+  * @device_alloc_chan_resources: allocate resources and return the
+  *	number of allocated descriptors
+  * @device_router_config: optional callback for DMA router configuration
+@@ -895,6 +907,7 @@ struct dma_device {
+ 	u32 max_sg_burst;
+ 	bool descriptor_reuse;
+ 	enum dma_residue_granularity residue_granularity;
++	u32 max_src_port_window_size;
+ 
+ 	int (*device_alloc_chan_resources)(struct dma_chan *chan);
+ 	int (*device_router_config)(struct dma_chan *chan);

@@ -1,0 +1,224 @@
+From 1004e5e4ff430f39ae05810dfb8ee0a2538b496c Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 04:36:48 +0100
+Subject: [PATCH] dt-bindings: media: Add QuickLogic CSSP camera interface
+
+Describe the QuickLogic CSSP parallel camera bridge on the TI GPMC bus
+as found on the BeagleBone camera capes: register window, supplies,
+reset and orientation GPIOs, the "rx" DMA channel and the parallel
+input endpoint.
+
+Upstream-Status: Pending
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../bindings/media/quicklogic,cssp-camif.yaml | 183 ++++++++++++++++++
+ MAINTAINERS                                   |   6 +
+ 2 files changed, 189 insertions(+)
+ create mode 100644 Documentation/devicetree/bindings/media/quicklogic,cssp-camif.yaml
+
+diff --git a/Documentation/devicetree/bindings/media/quicklogic,cssp-camif.yaml b/Documentation/devicetree/bindings/media/quicklogic,cssp-camif.yaml
+new file mode 100644
+index 000000000..1c93201d4
+--- /dev/null
++++ b/Documentation/devicetree/bindings/media/quicklogic,cssp-camif.yaml
+@@ -0,0 +1,183 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/media/quicklogic,cssp-camif.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: QuickLogic CSSP parallel camera interface on the TI GPMC bus
++
++maintainers:
++  - Koen Kooi <koen@dominion.thruhere.net>
++
++description: |
++  The QuickLogic CSSP camera interface ("CAM I/F") is a bridge between an
++  8-bit (2x8) or 10-bit parallel camera sensor bus and a 16-bit synchronous,
++  address/data multiplexed GPMC bus. It is used on the BeagleBone camera
++  capes. The host reads pixel data from a data window in the chip select
++  region with a DMA controller. The bridge raises a DMA request line each
++  time 32 or 128 bytes of pixel data are ready (the size depends on the
++  silicon revision). The bridge has no interrupt line.
++
++  The device is a child of the GPMC node. The chip select timings use the
++  generic GPMC child properties.
++
++allOf:
++  - $ref: /schemas/memory-controllers/mc-peripheral-props.yaml#
++
++properties:
++  $nodename:
++    pattern: "^camera@[0-7],[0-9a-f]+$"
++
++  compatible:
++    const: quicklogic,cssp-camif
++
++  reg:
++    maxItems: 1
++    description:
++      Chip select number, offset and size of the bridge window. The window
++      holds the mode register at offset 0x0 and the pixel data port at
++      offset 0x10000.
++
++  bank-width:
++    const: 2
++
++  dmas:
++    maxItems: 1
++    description:
++      DMA channel triggered by the bridge's DMA request line.
++
++  dma-names:
++    const: rx
++
++  clocks:
++    maxItems: 1
++    description:
++      Master clock that the board routes to the bridge and the sensor, if the
++      bridge needs it.
++
++  reset-gpios:
++    maxItems: 1
++    description:
++      GPIO connected to the active-low bridge reset input. On the BeagleBone
++      camera capes this line also resets the sensor.
++
++  orientation-gpios:
++    maxItems: 1
++    description:
++      GPIO that reports how the sensor board is mounted. Low means the sensor
++      faces the front, high means it faces the back.
++
++  vdd-supply:
++    description: Core supply of the bridge.
++
++  vddio-supply:
++    description: Camera-side I/O supply of the bridge.
++
++  port:
++    $ref: /schemas/graph.yaml#/$defs/port-base
++    unevaluatedProperties: false
++    description: Parallel input port, connected to the camera sensor.
++
++    properties:
++      endpoint:
++        $ref: video-interfaces.yaml#
++        unevaluatedProperties: false
++
++        properties:
++          bus-type:
++            const: 5
++
++          bus-width:
++            enum: [8, 10]
++            default: 8
++
++          pclk-sample:
++            enum: [0, 1]
++            default: 0
++
++          hsync-active:
++            const: 1
++
++          vsync-active:
++            const: 1
++
++        required:
++          - bus-type
++          - remote-endpoint
++
++required:
++  - compatible
++  - reg
++  - bank-width
++  - dmas
++  - dma-names
++  - reset-gpios
++  - port
++
++unevaluatedProperties: false
++
++examples:
++  - |
++    #include <dt-bindings/gpio/gpio.h>
++    #include <dt-bindings/media/video-interfaces.h>
++
++    memory-controller@50000000 {
++        compatible = "ti,am3352-gpmc";
++        reg = <0x50000000 0x2000>;
++        ranges = <1 0 0x18000000 0x01000000>;
++        #address-cells = <2>;
++        interrupts = <100>;
++        #size-cells = <1>;
++        gpmc,num-cs = <7>;
++        gpmc,num-waitpins = <2>;
++
++        camera@1,0 {
++            compatible = "quicklogic,cssp-camif";
++            reg = <1 0 0x01000000>;
++            bank-width = <2>;
++            dmas = <&edma 20 0>;
++            dma-names = "rx";
++            orientation-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
++            reset-gpios = <&gpio0 4 GPIO_ACTIVE_LOW>;
++            vdd-supply = <&cam_1v8>;
++            vddio-supply = <&cam_2v8>;
++            gpmc,access-ns = <140>;
++            gpmc,adv-on-ns = <0>;
++            gpmc,adv-rd-off-ns = <40>;
++            gpmc,adv-wr-off-ns = <40>;
++            gpmc,burst-length = <16>;
++            gpmc,burst-read;
++            gpmc,bus-turnaround-ns = <40>;
++            gpmc,clk-activation-ns = <20>;
++            gpmc,cs-on-ns = <1>;
++            gpmc,cs-rd-off-ns = <160>;
++            gpmc,cs-wr-off-ns = <310>;
++            gpmc,cycle2cycle-delay-ns = <40>;
++            gpmc,cycle2cycle-samecsen;
++            gpmc,mux-add-data = <2>;
++            gpmc,oe-off-ns = <160>;
++            gpmc,oe-on-ns = <60>;
++            gpmc,page-burst-access-ns = <20>;
++            gpmc,rd-cycle-ns = <160>;
++            gpmc,sync-clk-ps = <20000>;
++            gpmc,sync-read;
++            gpmc,sync-write;
++            gpmc,we-off-ns = <310>;
++            gpmc,we-on-ns = <60>;
++            gpmc,wr-access-ns = <100>;
++            gpmc,wr-cycle-ns = <310>;
++            gpmc,wr-data-mux-bus-ns = <60>;
++
++            port {
++                endpoint {
++                    bus-type = <MEDIA_BUS_TYPE_PARALLEL>;
++                    bus-width = <8>;
++                    hsync-active = <1>;
++                    pclk-sample = <0>;
++                    remote-endpoint = <&sensor_out>;
++                    vsync-active = <1>;
++                };
++            };
++        };
++    };
++...
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 8014b9f82..8994c3070 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -22403,6 +22403,12 @@ S:	Supported
+ W:	https://wireless.wiki.kernel.org/en/users/Drivers/wcn36xx
+ F:	drivers/net/wireless/ath/wcn36xx/
+ 
++QUICKLOGIC CSSP CAMERA INTERFACE DRIVER
++M:	Koen Kooi <koen@dominion.thruhere.net>
++L:	linux-media@vger.kernel.org
++S:	Maintained
++F:	Documentation/devicetree/bindings/media/quicklogic,cssp-camif.yaml
++
+ QUANTENNA QTNFMAC WIRELESS DRIVER
+ M:	Igor Mitsyanko <imitsyanko@quantenna.com>
+ R:	Sergey Matyukevich <geomatsi@gmail.com>

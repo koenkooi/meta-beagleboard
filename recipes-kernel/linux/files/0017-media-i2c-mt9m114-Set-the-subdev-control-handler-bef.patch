@@ -1,0 +1,45 @@
+From b20717f19f5db568e59691752558ded907f0f82c Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 08:05:57 +0100
+Subject: [PATCH] media: i2c: mt9m114: Set the subdev control handler before
+ init_finalize
+
+v4l2_subdev_init_finalize() only sets V4L2_SUBDEV_FL_HAS_EVENTS when
+sd->ctrl_handler is already set, so the pixel array subdev did not
+accept control event subscriptions. Assign the handler first.
+
+Upstream-Status: Pending
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/media/i2c/mt9m114.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/i2c/mt9m114.c b/drivers/media/i2c/mt9m114.c
+index 848ea06e7..5995567aa 100644
+--- a/drivers/media/i2c/mt9m114.c
++++ b/drivers/media/i2c/mt9m114.c
+@@ -1458,6 +1458,7 @@ static int mt9m114_pa_init(struct mt9m114 *sensor)
+ 		goto error;
+ 	}
+ 
++	sd->ctrl_handler = hdl;
+ 	sd->state_lock = hdl->lock;
+ 
+ 	ret = v4l2_subdev_init_finalize(sd);
+@@ -1470,8 +1471,6 @@ static int mt9m114_pa_init(struct mt9m114 *sensor)
+ 	mt9m114_pa_ctrl_update_blanking(sensor, format);
+ 	v4l2_subdev_unlock_state(state);
+ 
+-	sd->ctrl_handler = hdl;
+-
+ 	return 0;
+ 
+ error:
+@@ -2191,6 +2190,7 @@ static int mt9m114_ifp_init(struct mt9m114 *sensor)
+ 		goto error;
+ 	}
+ 
++	sd->ctrl_handler = hdl;
+ 	sd->ctrl_handler = hdl;
+ 	sd->state_lock = hdl->lock;
+ 

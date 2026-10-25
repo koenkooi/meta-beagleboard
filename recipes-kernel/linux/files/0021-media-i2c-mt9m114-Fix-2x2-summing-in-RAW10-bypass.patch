@@ -1,0 +1,196 @@
+From 9ad6785244b48210b6956a85cc994cf7c348d4a4 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 13:29:48 +0100
+Subject: [PATCH] media: i2c: mt9m114: Fix 2x2 summing in RAW10 bypass
+
+The pixel array sends one row more than the binned crop height when it
+sums vertically: with a 1280x960 crop the frame has 481 rows, not the 480
+that the pixel array, IFP and receiver formats describe. A receiver that
+checks the frame size sees one extra line per frame and drifts by a row per
+frame. End the readout one summed row earlier (Y_ADDR_END - vratio) to
+get exactly crop_h / 2 rows; row 0 was checked to be image data by
+comparing it against a 481 row capture (correlation 0.98).
+
+The summing readout also needs LINE_LENGTH_PCK >= output width + 508
+(measured: the number of valid columns is LINE_LENGTH_PCK - 508). The
+default HBLANK of 308 gave a line length of 948 for 640 columns, so only
+the left 440 columns carried an image. Raise the HBLANK minimum to 508 and
+the default to 520 when the pixel array sums.
+
+The summing modes of the sensor use different fine integration parameters
+(FINE_INTEG_TIME_MIN/MAX 0x01c3/0x03f7, FINE_CORRECTION 0x00e0) than the
+non-summing ones the driver programs. With the non-summing values every
+odd row reads as zero for LINE_LENGTH_PCK >= 1172 (hblank >= 532, tested
+at 600 and 610); with the summing values both row parities carry data at
+all tested line lengths.
+
+Measured on a BeagleBone with the QuickLogic CSSP bridge, 640x480 binned
+from a 1280x960 crop at 48 MHz: hblank 520 gives 40.57 fps, no error
+frames and no row drift; hblank 308, 400 and 480 show the first bad
+column at 440, 532 and 612 (LL - 508); hblank 508 and above is clean.
+
+Upstream-Status: Pending
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/media/i2c/mt9m114.c | 74 +++++++++++++++++++++++++++++++++----
+ 1 file changed, 67 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/media/i2c/mt9m114.c b/drivers/media/i2c/mt9m114.c
+index 76455cf6f..23dc35979 100644
+--- a/drivers/media/i2c/mt9m114.c
++++ b/drivers/media/i2c/mt9m114.c
+@@ -337,6 +337,13 @@
+ #define MT9M114_MIN_HBLANK				303
+ #define MT9M114_MIN_VBLANK				21
+ #define MT9M114_DEF_HBLANK				308
++/*
++ * With 2x2 summing the pixel array only delivers valid columns for
++ * LINE_LENGTH_PCK >= output width + 508 (measured), so the minimum HBLANK is
++ * 508 and the default is moved up a little to keep some margin.
++ */
++#define MT9M114_MIN_HBLANK_SUMMING			508
++#define MT9M114_DEF_HBLANK_SUMMING			520
+ #define MT9M114_DEF_VBLANK				21
+ 
+ #define MT9M114_DEF_FRAME_RATE				30
+@@ -796,9 +803,21 @@ static int mt9m114_initialize(struct mt9m114 *sensor)
+ 	return 0;
+ }
+ 
++/*
++ * The pixel array sums 2x2 pixels when the vertical binning factor is above 1.
++ * Only the 2x2 case is supported by the driver.
++ */
++static bool mt9m114_pa_is_summing(const struct v4l2_rect *crop,
++				  const struct v4l2_mbus_framefmt *format)
++{
++	return crop->height / format->height > 1;
++}
++
+ static int mt9m114_configure_pa(struct mt9m114 *sensor,
+ 				struct v4l2_subdev_state *state)
+ {
++	unsigned int y_end, last_row;
++	bool summing;
+ 	const struct v4l2_mbus_framefmt *format;
+ 	const struct v4l2_rect *crop;
+ 	unsigned int hratio, vratio;
+@@ -815,12 +834,22 @@ static int mt9m114_configure_pa(struct mt9m114 *sensor,
+ 
+ 	hratio = crop->width / format->width;
+ 	vratio = crop->height / format->height;
++	summing = mt9m114_pa_is_summing(crop, format);
+ 
+ 	/*
+ 	 * Pixel array crop and binning. The CAM_SENSOR_CFG_CPIPE_LAST_ROW
+ 	 * register isn't clearly documented, but is always set to the number
+ 	 * of active rows minus 4 divided by the vertical binning factor in all
+ 	 * example sensor modes.
++	 *
++	 * With Y summing the pixel array sends one row more than the binned
++	 * crop height (crop_h / 2 + 1 with Y_ADDR_END at the last cropped row),
++	 * which breaks the frame size and drifts the receiver by a row per
++	 * frame. End the readout one summed row earlier instead, as the
++	 * sensor's own summing modes do, to get exactly crop_h / 2 rows. The
++	 * summing modes also use different fine integration parameters; with
++	 * the non-summing ones every other row reads as zero for some line
++	 * lengths.
+ 	 */
+ 	cci_write(sensor->regmap, MT9M114_CAM_SENSOR_CFG_X_ADDR_START,
+ 		  crop->left, &ret);
+@@ -828,10 +857,31 @@ static int mt9m114_configure_pa(struct mt9m114 *sensor,
+ 		  crop->top, &ret);
+ 	cci_write(sensor->regmap, MT9M114_CAM_SENSOR_CFG_X_ADDR_END,
+ 		  crop->width + crop->left - 1, &ret);
++	y_end = crop->height + crop->top - 1;
++	last_row = (crop->height - 4) / vratio - 1;
++	if (summing)
++		y_end -= vratio;
+ 	cci_write(sensor->regmap, MT9M114_CAM_SENSOR_CFG_Y_ADDR_END,
+-		  crop->height + crop->top - 1, &ret);
++		  y_end, &ret);
+ 	cci_write(sensor->regmap, MT9M114_CAM_SENSOR_CFG_CPIPE_LAST_ROW,
+-		  (crop->height - 4) / vratio - 1, &ret);
++		  last_row, &ret);
++	if (summing) {
++		cci_write(sensor->regmap,
++			  MT9M114_CAM_SENSOR_CFG_FINE_INTEG_TIME_MIN,
++			  0x01c3, &ret);
++		cci_write(sensor->regmap,
++			  MT9M114_CAM_SENSOR_CFG_FINE_INTEG_TIME_MAX,
++			  0x03f7, &ret);
++		cci_write(sensor->regmap, MT9M114_CAM_SENSOR_CFG_FINE_CORRECTION,
++			  0x00e0, &ret);
++	} else {
++		cci_write(sensor->regmap,
++			  MT9M114_CAM_SENSOR_CFG_FINE_INTEG_TIME_MIN, 219, &ret);
++		cci_write(sensor->regmap,
++			  MT9M114_CAM_SENSOR_CFG_FINE_INTEG_TIME_MAX, 1459, &ret);
++		cci_write(sensor->regmap, MT9M114_CAM_SENSOR_CFG_FINE_CORRECTION,
++			  96, &ret);
++	}
+ 
+ 	read_mode &= ~(MT9M114_CAM_SENSOR_CONTROL_X_READ_OUT_MASK |
+ 		       MT9M114_CAM_SENSOR_CONTROL_Y_READ_OUT_MASK);
+@@ -1203,15 +1253,23 @@ static void mt9m114_pa_ctrl_update_exposure(struct mt9m114 *sensor, bool manual)
+ }
+ 
+ static void mt9m114_pa_ctrl_update_blanking(struct mt9m114 *sensor,
++					    const struct v4l2_rect *crop,
+ 					    const struct v4l2_mbus_framefmt *format)
+ {
++	unsigned int min_blank = MT9M114_MIN_HBLANK;
++	unsigned int def_blank = MT9M114_DEF_HBLANK;
+ 	unsigned int max_blank;
+ 
++	if (mt9m114_pa_is_summing(crop, format)) {
++		min_blank = MT9M114_MIN_HBLANK_SUMMING;
++		def_blank = MT9M114_DEF_HBLANK_SUMMING;
++	}
++
+ 	/* Update the blanking controls ranges based on the output size. */
+ 	max_blank = MT9M114_CAM_SENSOR_CFG_LINE_LENGTH_PCK_MAX
+ 		  - format->width;
+-	__v4l2_ctrl_modify_range(sensor->pa.hblank, MT9M114_MIN_HBLANK,
+-				 max_blank, 1, MT9M114_DEF_HBLANK);
++	__v4l2_ctrl_modify_range(sensor->pa.hblank, min_blank,
++				 max_blank, 1, def_blank);
+ 
+ 	max_blank = MT9M114_CAM_SENSOR_CFG_FRAME_LENGTH_LINES_MAX
+ 		  - format->height;
+@@ -1308,7 +1366,7 @@ static int mt9m114_pa_set_fmt(struct v4l2_subdev *sd,
+ 	fmt->format = *format;
+ 
+ 	if (fmt->which == V4L2_SUBDEV_FORMAT_ACTIVE)
+-		mt9m114_pa_ctrl_update_blanking(sensor, format);
++		mt9m114_pa_ctrl_update_blanking(sensor, crop, format);
+ 
+ 	return 0;
+ }
+@@ -1382,7 +1440,7 @@ static int mt9m114_pa_set_selection(struct v4l2_subdev *sd,
+ 	if (sel->which != V4L2_SUBDEV_FORMAT_ACTIVE)
+ 		return ret;
+ 
+-	mt9m114_pa_ctrl_update_blanking(sensor, format);
++	mt9m114_pa_ctrl_update_blanking(sensor, crop, format);
+ 
+ 	/* Apply values immediately if streaming. */
+ 	if (sensor->streaming) {
+@@ -1419,6 +1477,7 @@ static int mt9m114_pa_init(struct mt9m114 *sensor)
+ 	struct v4l2_subdev *sd = &sensor->pa.sd;
+ 	struct media_pad *pads = &sensor->pa.pad;
+ 	const struct v4l2_mbus_framefmt *format;
++	const struct v4l2_rect *crop;
+ 	struct v4l2_subdev_state *state;
+ 	unsigned int max_exposure;
+ 	int ret;
+@@ -1501,7 +1560,8 @@ static int mt9m114_pa_init(struct mt9m114 *sensor)
+ 	/* Update the range of the blanking controls based on the format. */
+ 	state = v4l2_subdev_lock_and_get_active_state(sd);
+ 	format = v4l2_subdev_state_get_format(state, 0);
+-	mt9m114_pa_ctrl_update_blanking(sensor, format);
++	crop = v4l2_subdev_state_get_crop(state, 0);
++	mt9m114_pa_ctrl_update_blanking(sensor, crop, format);
+ 	v4l2_subdev_unlock_state(state);
+ 
+ 	return 0;

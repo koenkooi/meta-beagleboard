@@ -1,0 +1,27 @@
+From c2a15750112303a3247260e82e3b18df364729e6 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 04:36:47 +0100
+Subject: [PATCH] dt-bindings: vendor-prefixes: Add QuickLogic
+
+Add the vendor prefix for QuickLogic Corporation, the maker of the CSSP
+camera bridge used on the BeagleBone camera capes.
+
+Upstream-Status: Pending
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ Documentation/devicetree/bindings/vendor-prefixes.yaml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/vendor-prefixes.yaml b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+index 396044f36..5d40289e3 100644
+--- a/Documentation/devicetree/bindings/vendor-prefixes.yaml
++++ b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+@@ -1365,6 +1365,8 @@ patternProperties:
+     description: QNAP Systems, Inc.
+   "^quanta,.*":
+     description: Quanta Computer Inc.
++  "^quicklogic,.*":
++    description: QuickLogic Corporation
+   "^radxa,.*":
+     description: Radxa
+   "^raidsonic,.*":

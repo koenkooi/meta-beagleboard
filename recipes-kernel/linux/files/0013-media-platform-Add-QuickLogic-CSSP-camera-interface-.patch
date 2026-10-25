@@ -1,0 +1,2443 @@
+From dcc3fce05c5c83fd56a51bde362805b8ffdac100 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 05:24:30 +0100
+Subject: [PATCH] media: platform: Add QuickLogic CSSP camera interface driver
+
+Add a media controller driver for the QuickLogic CSSP bridge on the TI
+GPMC bus, used on the BeagleBone camera capes. The bridge has one mode
+register, a pixel data port and no interrupt; the frame size is the DMA
+length.
+
+The driver exposes a bridge subdevice and a capture video node with
+MC-centric formats, owns the cape power rails and reset, and links the
+sensor to itself so the rails stay on while the sensor is in use. Data is
+moved by one cyclic dmaengine transfer into a ring of frame-sized bounce
+buffers and copied into vb2 buffers from a work item, which keeps the
+stream gap-free on the stock EDMA driver. Each DMA request reads the
+fixed-address data port (AB-synchronised, one word per element), which
+any slave DMA engine can do. A watchdog and recovery path restarts a
+stalled or misaligned stream, and frames around a misaligned period are
+completed with an error.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Upstream-Status: Pending
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ MAINTAINERS                                   |    1 +
+ drivers/media/platform/Kconfig                |    1 +
+ drivers/media/platform/Makefile               |    1 +
+ drivers/media/platform/quicklogic/Kconfig     |   22 +
+ drivers/media/platform/quicklogic/Makefile    |    2 +
+ .../media/platform/quicklogic/cssp-camif.c    | 2329 +++++++++++++++++
+ 6 files changed, 2356 insertions(+)
+ create mode 100644 drivers/media/platform/quicklogic/Kconfig
+ create mode 100644 drivers/media/platform/quicklogic/Makefile
+ create mode 100644 drivers/media/platform/quicklogic/cssp-camif.c
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index d7d130c1b..42bab745a 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -22409,6 +22409,7 @@ M:	Koen Kooi <koen@dominion.thruhere.net>
+ L:	linux-media@vger.kernel.org
+ S:	Maintained
+ F:	Documentation/devicetree/bindings/media/quicklogic,cssp-camif.yaml
++F:	drivers/media/platform/quicklogic/
+ 
+ QUANTENNA QTNFMAC WIRELESS DRIVER
+ M:	Igor Mitsyanko <imitsyanko@quantenna.com>
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index 0b33e927b..27bc2e073 100644
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -81,6 +81,7 @@ source "drivers/media/platform/nuvoton/Kconfig"
+ source "drivers/media/platform/nvidia/Kconfig"
+ source "drivers/media/platform/nxp/Kconfig"
+ source "drivers/media/platform/qcom/Kconfig"
++source "drivers/media/platform/quicklogic/Kconfig"
+ source "drivers/media/platform/raspberrypi/Kconfig"
+ source "drivers/media/platform/renesas/Kconfig"
+ source "drivers/media/platform/rockchip/Kconfig"
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+index 16c185752..d01c37412 100644
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -24,6 +24,7 @@ obj-y += nuvoton/
+ obj-y += nvidia/
+ obj-y += nxp/
+ obj-y += qcom/
++obj-y += quicklogic/
+ obj-y += raspberrypi/
+ obj-y += renesas/
+ obj-y += rockchip/
+diff --git a/drivers/media/platform/quicklogic/Kconfig b/drivers/media/platform/quicklogic/Kconfig
+new file mode 100644
+index 000000000..09ca97f42
+--- /dev/null
++++ b/drivers/media/platform/quicklogic/Kconfig
+@@ -0,0 +1,22 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++comment "QuickLogic media platform drivers"
++
++config VIDEO_CSSP_CAMIF
++	tristate "QuickLogic CSSP camera interface (BeagleBone camera cape)"
++	depends on V4L_PLATFORM_DRIVERS
++	depends on VIDEO_DEV && OF && HAS_DMA && DMA_ENGINE
++	depends on ARCH_OMAP2PLUS || COMPILE_TEST
++	depends on PM
++	select MEDIA_CONTROLLER
++	select VIDEO_V4L2_SUBDEV_API
++	select VIDEOBUF2_VMALLOC
++	select V4L2_FWNODE
++	help
++	  Support for the QuickLogic CSSP parallel camera interface on the
++	  TI GPMC bus, as used on the BeagleBone camera capes. The bridge
++	  receives pixel data from an 8-bit parallel camera sensor and the
++	  host reads it through a DMA channel.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called cssp-camif.
+diff --git a/drivers/media/platform/quicklogic/Makefile b/drivers/media/platform/quicklogic/Makefile
+new file mode 100644
+index 000000000..f18dd67b5
+--- /dev/null
++++ b/drivers/media/platform/quicklogic/Makefile
+@@ -0,0 +1,2 @@
++# SPDX-License-Identifier: GPL-2.0-only
++obj-$(CONFIG_VIDEO_CSSP_CAMIF) += cssp-camif.o
+diff --git a/drivers/media/platform/quicklogic/cssp-camif.c b/drivers/media/platform/quicklogic/cssp-camif.c
+new file mode 100644
+index 000000000..75510f50a
+--- /dev/null
++++ b/drivers/media/platform/quicklogic/cssp-camif.c
+@@ -0,0 +1,2329 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * QuickLogic CSSP camera interface driver
++ *
++ * The CSSP ("CAM I/F") is a bridge between an 8-bit parallel camera sensor
++ * and the 16-bit address/data multiplexed TI GPMC bus. It is used on the
++ * BeagleBone camera capes. The bridge has a single mode register and a pixel
++ * data port, no interrupt and no frame size or format registers. It raises a
++ * DMA request each time 32 or 128 bytes of pixel data are ready (depending
++ * on the silicon revision), and the frame size is purely the DMA length.
++ *
++ * No datasheet exists. The register usage and all timings follow the 3.8
++ * driver written for the capes.
++ *
++ * DMA design
++ * ----------
++ *
++ * The data is moved by one cyclic dmaengine transfer into a ring of N
++ * frame-sized bounce slots (one period per frame). The DMA controller links
++ * the periods into a hardware loop, so there is no CPU step and no lost DMA
++ * request between frames. A work item copies each completed slot into the
++ * next queued vb2 buffer; when no buffer is queued the frame is dropped and
++ * the sequence number still advances.
++ *
++ * The period callbacks coalesce, so frame progress is derived from the DMA
++ * position, sampled and applied under qlock (cssp_account()). Only frames
++ * that a period callback reported complete are copied; a position sample
++ * taken by the copy work only decides whether a slot was overwritten.
++ *
++ * The bridge has no frame markers. Alignment rests on arming the DMA before
++ * the capture is enabled, on periods that are exactly one frame, and on the
++ * assumption that the bridge starts capturing at a frame boundary. A period
++ * that completes in the middle of a frame (a non-zero offset into the next
++ * period when the callback runs) is the only observable sign of a lost DMA
++ * request or a FIFO overflow. Frames around such a callback are completed
++ * with an error, and repeated offsets trigger a recovery that restarts the
++ * DMA and pulses the capture enable bit.
++ *
++ * Frame sizes
++ * -----------
++ *
++ * Each DMA request moves a fixed number of bytes (128 on revision > 3, 32
++ * otherwise), so sizeimage must be a multiple of the request length. The
++ * format ioctls accept any size within the limits because libcamera needs
++ * S_FMT to return the requested size and the constraint is a product of
++ * width and height. A size that does not satisfy it fails at STREAMON with
++ * -EPIPE. For 16-bit formats on a revision > 3 bridge, width x height must
++ * be a multiple of 64; for 8-bit raw formats a multiple of 128.
++ *
++ * Locking
++ * -------
++ *
++ * Lock order: vlock -> bridge subdev state lock -> sensor locks -> hw_lock
++ * -> qlock (-> the DMA driver's channel lock, only inside
++ * dmaengine_tx_status()). Work items never take vlock or a subdev lock.
++ */
++
++#include <linux/bitfield.h>
++#include <linux/bitops.h>
++#include <linux/bits.h>
++#include <linux/cleanup.h>
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/device.h>
++#include <linux/dma-mapping.h>
++#include <linux/dmaengine.h>
++#include <linux/gpio/consumer.h>
++#include <linux/io.h>
++#include <linux/iopoll.h>
++#include <linux/jiffies.h>
++#include <linux/ktime.h>
++#include <linux/list.h>
++#include <linux/math64.h>
++#include <linux/minmax.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/platform_device.h>
++#include <linux/pm_runtime.h>
++#include <linux/property.h>
++#include <linux/regulator/consumer.h>
++#include <linux/sizes.h>
++#include <linux/slab.h>
++#include <linux/spinlock.h>
++#include <linux/workqueue.h>
++
++#include <media/media-device.h>
++#include <media/media-entity.h>
++#include <media/v4l2-async.h>
++#include <media/v4l2-ctrls.h>
++#include <media/v4l2-dev.h>
++#include <media/v4l2-device.h>
++#include <media/v4l2-fh.h>
++#include <media/v4l2-fwnode.h>
++#include <media/v4l2-ioctl.h>
++#include <media/v4l2-subdev.h>
++#include <media/videobuf2-v4l2.h>
++#include <media/videobuf2-vmalloc.h>
++
++#define CSSP_DRV_NAME			"cssp-camif"
++#define CSSP_MODEL			"QuickLogic CSSP camera interface"
++
++/* Register window: only these two offsets are known */
++#define CSSP_REG_MODE			0x00000
++#define CSSP_REG_DATA			0x10000
++
++#define CSSP_MODE_FMT_2X8_EN		BIT(15)	/* 8-bit bus, 2 cycles per pixel */
++#define CSSP_MODE_PCLK_POL		BIT(14)	/* 1: sample on the falling edge */
++#define CSSP_MODE_HS_EN			BIT(13)	/* "high speed bus" (> 50 MHz) */
++#define CSSP_MODE_ENABLE		BIT(12)	/* capture enable */
++#define CSSP_MODE_LDR_EN		BIT(11)	/* 128-byte DMA requests */
++#define CSSP_MODE_NO_DATA		BIT(8)	/* set until data is seen (assumed) */
++#define CSSP_MODE_REV			GENMASK(7, 0)
++
++/* Largest DMA request; also the size of the mapped data port */
++#define CSSP_DATA_WINDOW		128
++
++#define CSSP_MIN_WIDTH			48U
++#define CSSP_MAX_WIDTH			2048U
++#define CSSP_MIN_HEIGHT			32U
++#define CSSP_MAX_HEIGHT			1536U
++#define CSSP_DEF_WIDTH			640U
++#define CSSP_DEF_HEIGHT			480U
++
++#define CSSP_RING_SLOTS			4
++#define CSSP_RING_SLOTS_LARGE		3
++#define CSSP_RING_LARGE_FRAME		SZ_2M
++
++#define CSSP_AUTOSUSPEND_MS		1000
++#define CSSP_POWER_UP_US		10000
++#define CSSP_ENABLE_POLL_US		1000
++#define CSSP_ENABLE_TIMEOUT_US		1000000
++#define CSSP_ENABLE_TRIES		3
++#define CSSP_MAX_RECOVERIES		3
++/* Aligned period callbacks in a row after which the recoveries are forgiven */
++#define CSSP_RECOVERY_CLEAN		10
++
++#define CSSP_WD_MIN_MS			500U
++#define CSSP_WD_DEFAULT_MS		2000
++#define CSSP_WD_FRAMES			3
++
++/* Misalignment detector: three equal offsets in a row, or 8 of the last 10 */
++#define CSSP_MISALIGN_SAME		3
++#define CSSP_MISALIGN_HISTORY		GENMASK(9, 0)
++#define CSSP_MISALIGN_HITS		8
++
++/* DMA bandwidth budget in bytes per second (an estimate, not measured) */
++#define CSSP_BUDGET_FALLBACK		18000000ULL
++
++enum cssp_pads {
++	CSSP_PAD_SINK,
++	CSSP_PAD_SOURCE,
++	CSSP_NUM_PADS,
++};
++
++static bool debug_skip_size_check;
++module_param(debug_skip_size_check, bool, 0644);
++MODULE_PARM_DESC(debug_skip_size_check,
++		 "Debug: skip the video node size check (misalignment detector test)");
++
++/**
++ * struct cssp_format - format supported by the bridge
++ * @code: media bus code on the bridge sink pad (and on the source pad when
++ *	@src_code is 0)
++ * @src_code: media bus code on the bridge source pad, 0 for the same as @code
++ * @fourcc: pixel format of the capture video node
++ * @bpp: bytes per pixel in memory
++ * @raw: Bayer raw format
++ * @bus8: only usable with the 8-bit parallel bus
++ */
++struct cssp_format {
++	u32 code;
++	u32 src_code;
++	u32 fourcc;
++	u8 bpp;
++	bool raw;
++	bool bus8;
++};
++
++/*
++ * The bridge does no format conversion, but it packs the 8-bit bus into
++ * 16-bit words with the first byte of each pair in bits 15:8. Read by the
++ * little-endian DMA, every byte pair lands swapped in memory: a UYVY8_2X8
++ * bus (U Y0 V Y1) is stored as Y0 U Y1 V, i.e. YUYV. Verified at 640x480
++ * with the MT9M114 in UYVY8_2X8 and YUYV8_2X8. The fourcc column is
++ * therefore the pair-swapped form of the bus code. The first entry is the
++ * default and matches the MT9M114 parallel default code.
++ */
++static const struct cssp_format cssp_formats[] = {
++	{ MEDIA_BUS_FMT_UYVY8_2X8, 0,		V4L2_PIX_FMT_YUYV,	2 },
++	{ MEDIA_BUS_FMT_YUYV8_2X8, 0,		V4L2_PIX_FMT_UYVY,	2 },
++	{ MEDIA_BUS_FMT_YVYU8_2X8, 0,		V4L2_PIX_FMT_VYUY,	2 },
++	{ MEDIA_BUS_FMT_VYUY8_2X8, 0,		V4L2_PIX_FMT_YVYU,	2 },
++	{ MEDIA_BUS_FMT_RGB565_2X8_BE, 0,	V4L2_PIX_FMT_RGB565,	2 },
++	{ MEDIA_BUS_FMT_RGB565_2X8_LE, 0,	V4L2_PIX_FMT_RGB565X,	2 },
++	{ MEDIA_BUS_FMT_RGB555_2X8_PADHI_LE, 0,	V4L2_PIX_FMT_RGB555X,	2 },
++	/*
++	 * Raw Bayer from the sensor bypass path. The sensor sends 10-bit
++	 * raw (SGRBG10_1X10) on the 8-bit bus, so the bridge sees the 8 MSBs
++	 * (P[9:2]) of each pixel: the data is 8-bit raw Bayer, and the
++	 * source pad says so (SGRBG8_1X8). The bridge packs every byte pair
++	 * into a 16-bit word with the first byte in bits 15:8, so the pairs
++	 * land swapped in memory (G R G R becomes R G R G). That is right for
++	 * a 2-byte pixel but wrong for 1-byte Bayer pixels, so
++	 * cssp_copy_work() swaps every byte pair back when it copies a raw
++	 * frame (@raw): the memory order equals the bus order, and the
++	 * fourcc is the plain SGRBG8.
++	 *
++	 * This mapping assumes HFLIP = VFLIP = 0 on the sensor. A flip moves
++	 * the Bayer phase and the sensor does not report it in the media bus
++	 * code. With the swap the expected phase is h0v0 GRBG, h1v0 RGGB,
++	 * h0v1 BGGR, h1v1 GBRG (the round-2 measurement without the swap was
++	 * h0v0 RGGB, h1v0 GRBG, h0v1 GBRG, h1v1 BGGR, mirrored per pair; the
++	 * round-3 test pattern scan re-measures it). Note that
++	 * cssp_apply_orientation() sets VFLIP=1 at bind time when the
++	 * orientation input is high (back-facing board) and the control keeps
++	 * that value, so a freshly booted cape delivers BGGR: reset both
++	 * flips to 0 before raw capture.
++	 */
++	{ MEDIA_BUS_FMT_SGRBG10_1X10, MEDIA_BUS_FMT_SGRBG8_1X8,
++	  V4L2_PIX_FMT_SGRBG8, 1, true, true },
++};
++
++/**
++ * struct cssp_buffer - capture buffer
++ * @vb: vb2 buffer, must be first
++ * @list: entry in &cssp_camif.pending
++ */
++struct cssp_buffer {
++	struct vb2_v4l2_buffer vb;
++	struct list_head list;
++};
++
++/**
++ * struct cssp_camif - driver state
++ * @dev: the platform device
++ * @base: mapped register window
++ * @data_phys: CPU physical address of the data port
++ * @data_dma: the data port as the DMA controller addresses it
++ * @reset: shared bridge and sensor reset, held released
++ * @orient: optional orientation input
++ * @supplies: the two cape rails
++ * @mclk: optional master clock
++ * @dma: DMA channel
++ * @dmadev: the device that does the DMA (for mapping and the ring)
++ * @identified: @rev is valid
++ * @rev: silicon revision
++ * @req_len: bytes per DMA request
++ * @mode: mode register value without ENABLE (protected by @hw_lock)
++ * @pclk_falling: sample on the falling PCLK edge
++ * @bus_width: parallel bus width from the endpoint
++ * @mdev: media device
++ * @v4l2_dev: V4L2 device, its release frees this structure
++ * @bridge: bridge subdev
++ * @bridge_pads: bridge pads
++ * @vdev: capture video node
++ * @vdev_pad: video node pad
++ * @pipe: media pipeline
++ * @pipe_stopped: the sensor unbind stopped the stream and the pipeline
++ *	(protected by @vlock)
++ * @queue: vb2 queue
++ * @fmt: video node format (protected by @vlock)
++ * @cfmt: entry of cssp_formats[] for @fmt
++ * @notifier: async notifier for the sensor
++ * @source: bound sensor subdev (protected by @vlock)
++ * @source_pad: sensor source pad linked to the bridge
++ * @link: device link sensor (consumer) -> bridge (supplier)
++ * @vlock: L1, vb2 queue and video node lock
++ * @hw_lock: L4, every mode register access
++ * @qlock: L5, the pending list and all streaming state below
++ * @pending: queued vb2 buffers
++ * @copy_wq: ordered high priority queue for @copy_work
++ * @copy_work: copies completed ring slots into vb2 buffers
++ * @recover_work: restarts the DMA and the capture after an error
++ * @watchdog: fires when no frame completed for @wd_timeout
++ * @wd_timeout: watchdog timeout in jiffies
++ * @frame_ns: frame interval of the source in ns, 0 if unknown
++ * @ring: ring of bounce slots (CPU address)
++ * @ring_dma: ring DMA address
++ * @ring_len: ring length in bytes (@n * @sizeimage)
++ * @sizeimage: bytes per frame
++ * @n: number of ring slots
++ * @cookie: cookie of the cyclic descriptor
++ * @streaming: between start and stop; nothing is queued or re-armed when false
++ * @started: the capture start completed; buffers may be filled
++ * @recovering: a recovery is in progress; samples and frames are ignored
++ * @total: bytes transferred since the DMA (re)start
++ * @last_done: ring offset of the last valid position sample
++ * @last_sample_ns: time of the last valid position sample
++ * @last_cb_ns: time of the last period callback with a valid sample
++ * @completed: frames completed in this DMA run, by the newest sample
++ * @cb_completed: frames completed by the last period callback; the copy
++ *	work copies only these
++ * @copied: frames handled by the copy work in this DMA run
++ * @discard_until: frames below this index are dropped
++ * @seq_base: sequence number of frame 0 of this DMA run
++ * @dropped: frames dropped since the stream start
++ * @recoveries: recoveries without %CSSP_RECOVERY_CLEAN aligned period
++ *	callbacks in a row in between
++ * @aligned_run: aligned period callbacks in a row
++ * @frame_ts: end-of-frame timestamps, one per ring slot
++ * @slot_bad: per ring slot, frame index + 1 of a frame that a misaligned
++ *	period callback marked bad, 0 for none
++ * @mis_off: last non-zero period offset
++ * @mis_same: number of consecutive callbacks with offset @mis_off
++ * @mis_hist: one bit per recent callback, set for a non-zero offset
++ */
++struct cssp_camif {
++	struct device *dev;
++	void __iomem *base;
++	phys_addr_t data_phys;
++	dma_addr_t data_dma;
++	struct gpio_desc *reset;
++	struct gpio_desc *orient;
++	struct regulator_bulk_data supplies[2];
++	struct clk *mclk;
++	struct dma_chan *dma;
++	struct device *dmadev;
++	bool identified;
++	u8 rev;
++	u32 req_len;
++	u16 mode;
++	bool pclk_falling;
++	unsigned int bus_width;
++
++	struct media_device mdev;
++	struct v4l2_device v4l2_dev;
++	struct v4l2_subdev bridge;
++	struct media_pad bridge_pads[CSSP_NUM_PADS];
++	struct video_device vdev;
++	struct media_pad vdev_pad;
++	struct media_pipeline pipe;
++	bool pipe_stopped;
++	struct vb2_queue queue;
++	struct v4l2_pix_format fmt;
++	const struct cssp_format *cfmt;
++
++	struct v4l2_async_notifier notifier;
++	struct v4l2_subdev *source;
++	u32 source_pad;
++	struct device_link *link;
++
++	struct mutex vlock;		/* L1: vb2 queue and video node */
++	struct mutex hw_lock;		/* L4: mode register */
++	spinlock_t qlock;		/* L5: pending list, streaming state */
++	struct list_head pending;
++
++	struct workqueue_struct *copy_wq;
++	struct work_struct copy_work;
++	struct work_struct recover_work;
++	struct delayed_work watchdog;
++	unsigned long wd_timeout;
++	u64 frame_ns;
++
++	void *ring;
++	dma_addr_t ring_dma;
++	u32 ring_len;
++	u32 sizeimage;
++	u32 n;
++	dma_cookie_t cookie;
++
++	bool streaming;
++	bool started;
++	bool recovering;
++	u64 total;
++	u32 last_done;
++	u64 last_sample_ns;
++	u64 last_cb_ns;
++	u32 completed;
++	u32 cb_completed;
++	u32 copied;
++	u32 discard_until;
++	u32 seq_base;
++	u32 dropped;
++	unsigned int recoveries;
++	unsigned int aligned_run;
++	u64 frame_ts[CSSP_RING_SLOTS];
++	u32 slot_bad[CSSP_RING_SLOTS];
++	u32 mis_off;
++	unsigned int mis_same;
++	u16 mis_hist;
++};
++
++static inline struct cssp_camif *notifier_to_cssp(struct v4l2_async_notifier *n)
++{
++	return container_of(n, struct cssp_camif, notifier);
++}
++
++static inline struct cssp_camif *sd_to_cssp(struct v4l2_subdev *sd)
++{
++	return container_of(sd, struct cssp_camif, bridge);
++}
++
++static inline struct cssp_buffer *to_cssp_buffer(struct vb2_v4l2_buffer *vbuf)
++{
++	return container_of(vbuf, struct cssp_buffer, vb);
++}
++
++static u32 cssp_src_code(const struct cssp_format *f)
++{
++	return f->src_code ?: f->code;
++}
++
++static bool cssp_format_usable(const struct cssp_camif *c,
++			       const struct cssp_format *f)
++{
++	return !f->bus8 || c->bus_width == 8;
++}
++
++/* look up by the code on the sink pad */
++static const struct cssp_format *cssp_find_code(const struct cssp_camif *c,
++						u32 code)
++{
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(cssp_formats); i++)
++		if (cssp_formats[i].code == code &&
++		    cssp_format_usable(c, &cssp_formats[i]))
++			return &cssp_formats[i];
++	return NULL;
++}
++
++/* look up by the code on the source pad */
++static const struct cssp_format *cssp_find_src_code(const struct cssp_camif *c,
++						    u32 code)
++{
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(cssp_formats); i++)
++		if (cssp_src_code(&cssp_formats[i]) == code &&
++		    cssp_format_usable(c, &cssp_formats[i]))
++			return &cssp_formats[i];
++	return NULL;
++}
++
++static const struct cssp_format *cssp_find_fourcc(const struct cssp_camif *c,
++						  u32 fourcc)
++{
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(cssp_formats); i++)
++		if (cssp_formats[i].fourcc == fourcc &&
++		    cssp_format_usable(c, &cssp_formats[i]))
++			return &cssp_formats[i];
++	return NULL;
++}
++
++/* the index'th usable entry */
++static const struct cssp_format *cssp_nth_format(const struct cssp_camif *c,
++						 unsigned int index)
++{
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(cssp_formats); i++) {
++		if (!cssp_format_usable(c, &cssp_formats[i]))
++			continue;
++		if (!index--)
++			return &cssp_formats[i];
++	}
++	return NULL;
++}
++
++/* -----------------------------------------------------------------------------
++ * Register access
++ */
++
++/*
++ * The 3.8 driver discarded the first read after an idle bus ("double read")
++ * and did a dummy read before each write. Whether either is needed is not
++ * known; both are kept.
++ */
++static u16 cssp_read_mode(struct cssp_camif *c)
++{
++	lockdep_assert_held(&c->hw_lock);
++
++	readw(c->base + CSSP_REG_MODE);
++	return readw(c->base + CSSP_REG_MODE);
++}
++
++static void cssp_write_mode(struct cssp_camif *c, u16 val)
++{
++	lockdep_assert_held(&c->hw_lock);
++
++	readw(c->base + CSSP_REG_MODE);
++	writew(val, c->base + CSSP_REG_MODE);
++}
++
++/* The bridge answers with its probe-time revision (no power loss, no bus fault) */
++static bool cssp_check_revision(struct cssp_camif *c)
++{
++	u16 val = cssp_read_mode(c);
++
++	return val != 0xffff && FIELD_GET(CSSP_MODE_REV, val) == c->rev;
++}
++
++/**
++ * cssp_capture_enable - pulse or clear the capture enable bit
++ * @c: driver state
++ * @on: start or stop the capture
++ *
++ * Starting writes ENABLE 0 then 1 and waits up to 1 s for the status bit
++ * that the 3.8 driver read as "no data yet" to clear. On a timeout ENABLE is
++ * cleared again. Stopping writes ENABLE 1 then 0, the order of the 3.8
++ * driver.
++ *
++ * Return: 0, or -EAGAIN when no data arrived after the start.
++ */
++static int cssp_capture_enable(struct cssp_camif *c, bool on)
++{
++	u16 val;
++
++	lockdep_assert_held(&c->hw_lock);
++
++	if (!on) {
++		cssp_write_mode(c, c->mode | CSSP_MODE_ENABLE);
++		cssp_write_mode(c, c->mode);
++		return 0;
++	}
++
++	cssp_write_mode(c, c->mode);
++	cssp_write_mode(c, c->mode | CSSP_MODE_ENABLE);
++	if (!readw_poll_timeout(c->base + CSSP_REG_MODE, val,
++				!(val & CSSP_MODE_NO_DATA),
++				CSSP_ENABLE_POLL_US, CSSP_ENABLE_TIMEOUT_US))
++		return 0;
++
++	cssp_write_mode(c, c->mode);
++	return -EAGAIN;
++}
++
++/* -----------------------------------------------------------------------------
++ * Power
++ */
++
++/*
++ * The bridge is powered from the cape rails and comes up from the rail ramp
++ * alone. The driver never pulses the shared reset: the sensor may be
++ * powered and configured through its own regulator references at any time.
++ */
++static int cssp_power_on(struct cssp_camif *c)
++{
++	int ret;
++
++	ret = regulator_bulk_enable(ARRAY_SIZE(c->supplies), c->supplies);
++	if (ret) {
++		dev_err(c->dev, "failed to enable supplies: %d\n", ret);
++		return ret;
++	}
++
++	ret = clk_prepare_enable(c->mclk);
++	if (ret) {
++		dev_err(c->dev, "failed to enable the clock: %d\n", ret);
++		goto err_supplies;
++	}
++
++	usleep_range(CSSP_POWER_UP_US, CSSP_POWER_UP_US + 1000);
++
++	scoped_guard(mutex, &c->hw_lock) {
++		/* the revision is known once the bridge was identified at probe */
++		if (c->identified && !cssp_check_revision(c))
++			ret = -EIO;
++		else
++			cssp_write_mode(c, c->mode);
++	}
++	if (ret) {
++		dev_err(c->dev, "bridge does not answer after power up\n");
++		goto err_clk;
++	}
++
++	return 0;
++
++err_clk:
++	clk_disable_unprepare(c->mclk);
++err_supplies:
++	regulator_bulk_disable(ARRAY_SIZE(c->supplies), c->supplies);
++	return ret;
++}
++
++static void cssp_power_off(struct cssp_camif *c)
++{
++	scoped_guard(mutex, &c->hw_lock)
++		cssp_write_mode(c, c->mode);
++
++	clk_disable_unprepare(c->mclk);
++	regulator_bulk_disable(ARRAY_SIZE(c->supplies), c->supplies);
++}
++
++static int cssp_runtime_resume(struct device *dev)
++{
++	return cssp_power_on(dev_get_drvdata(dev));
++}
++
++static int cssp_runtime_suspend(struct device *dev)
++{
++	cssp_power_off(dev_get_drvdata(dev));
++	return 0;
++}
++
++static int cssp_pm_prepare(struct device *dev)
++{
++	struct cssp_camif *c = dev_get_drvdata(dev);
++
++	/* suspend while streaming is not supported */
++	guard(spinlock_irqsave)(&c->qlock);
++	return c->streaming ? -EBUSY : 0;
++}
++
++static const struct dev_pm_ops cssp_pm_ops = {
++	.prepare = cssp_pm_prepare,
++	SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
++	RUNTIME_PM_OPS(cssp_runtime_suspend, cssp_runtime_resume, NULL)
++};
++
++/* Powered, at probe: read the revision and derive the request length */
++static int cssp_identify(struct cssp_camif *c)
++{
++	u16 val;
++
++	guard(mutex)(&c->hw_lock);
++
++	val = cssp_read_mode(c);
++	if (val == 0x0000 || val == 0xffff) {
++		dev_err(c->dev, "no bridge found (mode register 0x%04x)\n", val);
++		return -ENODEV;
++	}
++
++	c->rev = FIELD_GET(CSSP_MODE_REV, val);
++	c->identified = true;
++	if (c->rev > 3) {
++		c->req_len = 128;
++		c->mode |= CSSP_MODE_LDR_EN;
++	} else {
++		c->req_len = 32;
++	}
++	cssp_write_mode(c, c->mode);
++
++	return 0;
++}
++
++/* -----------------------------------------------------------------------------
++ * DMA
++ */
++
++static int cssp_ring_alloc(struct cssp_camif *c)
++{
++	c->n = c->sizeimage > CSSP_RING_LARGE_FRAME ? CSSP_RING_SLOTS_LARGE :
++						      CSSP_RING_SLOTS;
++	c->ring_len = c->n * c->sizeimage;
++	c->ring = dma_alloc_noncoherent(c->dmadev, c->ring_len, &c->ring_dma,
++					DMA_FROM_DEVICE, GFP_KERNEL);
++	if (!c->ring)
++		return -ENOMEM;
++
++	/* the allocation zeroed the ring through the cache */
++	dma_sync_single_for_device(c->dmadev, c->ring_dma, c->ring_len,
++				   DMA_FROM_DEVICE);
++	return 0;
++}
++
++static void cssp_ring_free(struct cssp_camif *c)
++{
++	if (!c->ring)
++		return;
++
++	dma_free_noncoherent(c->dmadev, c->ring_len, c->ring, c->ring_dma,
++			     DMA_FROM_DEVICE);
++	c->ring = NULL;
++}
++
++/* The DMA has started writing frame + n, i.e. it re-entered the frame's slot */
++static bool cssp_slot_reused(struct cssp_camif *c, u32 frame)
++{
++	return c->total >= (u64)(frame + c->n) * c->sizeimage;
++}
++
++/*
++ * Laps cannot be seen in the ring position. A lap may have happened when
++ * the time since the last sample, at the nominal frame interval, is longer
++ * than the ring minus the distance moved. The time alone cannot tell a lap
++ * from a sensor stall or a frame rate below nominal, so a possible lap is
++ * not added to the total (which would drop frames and jump the sequence by
++ * whole rings); the caller drops the frames in the ring instead. A real lap
++ * then shows as a sequence that is too short, never as a false gap. Only
++ * once data is flowing, so that the time before the first frame does not
++ * count.
++ */
++static bool cssp_maybe_lapped(struct cssp_camif *c, u64 now, u32 delta)
++{
++	u64 elapsed;
++
++	if (!c->frame_ns || !c->total)
++		return false;
++
++	elapsed = now - c->last_sample_ns;
++	if (elapsed <= (u64)(c->n - 1) * c->frame_ns)
++		return false;
++
++	return div64_u64(elapsed, c->frame_ns) * c->sizeimage >=
++	       (u64)delta + c->ring_len;
++}
++
++/**
++ * cssp_account - sample the DMA position and advance the frame accounting
++ * @c: driver state
++ * @now: time of the sample (ktime_get_ns())
++ *
++ * The sample is taken and applied under qlock, so samples are applied in the
++ * order in which they were taken. No sample is taken while not streaming or
++ * recovering: after dmaengine_terminate_sync() the cookie is still "in
++ * progress" with a residue of 0, which would read as a position at the end
++ * of the ring. Samples with an implausible status or residue are ignored as
++ * well; the counters then keep the last valid total, which is a lower bound,
++ * so a caller that needs an exact position must treat a false return as
++ * "position unknown".
++ *
++ * Return: true if a valid sample was applied.
++ */
++static bool cssp_account(struct cssp_camif *c, u64 now)
++{
++	struct dma_tx_state st;
++	enum dma_status status;
++	u32 done, delta, completed, first, f;
++	bool lapped;
++
++	lockdep_assert_held(&c->qlock);
++
++	if (!c->streaming || c->recovering)
++		return false;
++
++	/* takes only the DMA driver's channel lock */
++	status = dmaengine_tx_status(c->dma, c->cookie, &st);
++	if (status != DMA_IN_PROGRESS && status != DMA_PAUSED)
++		return false;
++
++	/*
++	 * Cyclic residue = ring_len - (position - start), so a valid residue
++	 * is 1 .. ring_len and done is 0 .. ring_len - 1, in units of one
++	 * DMA request.
++	 */
++	if (!st.residue || st.residue > c->ring_len)
++		return false;
++
++	done = c->ring_len - st.residue;
++	delta = (done + c->ring_len - c->last_done) % c->ring_len;
++	lapped = cssp_maybe_lapped(c, now, delta);
++	c->last_done = done;
++	c->total += delta;
++	c->last_sample_ns = now;
++
++	completed = div_u64(c->total, c->sizeimage);
++	/* the slots may hold newer frames than their index says */
++	if (lapped) {
++		dev_dbg_ratelimited(c->dev, "possible ring lap, dropping %u frames\n",
++				    completed - min(c->copied, completed));
++		c->discard_until = max(c->discard_until, completed);
++	}
++	if (completed == c->completed)
++		return true;
++
++	/*
++	 * The newest frame gets the sample time; coalesced older frames get
++	 * that time minus whole frame intervals (an estimate). Only the last
++	 * n frames can still be in the ring.
++	 */
++	first = max(c->completed, completed > c->n ? completed - c->n : 0);
++	for (f = first; f < completed; f++)
++		c->frame_ts[f % c->n] = now - (u64)(completed - 1 - f) * c->frame_ns;
++	c->completed = completed;
++
++	return true;
++}
++
++/*
++ * A period completes with the last request of a frame. If the stream is
++ * aligned, vertical blanking follows and the callback sees offset 0. A
++ * constant non-zero offset means the DMA is ahead by that many bytes, a
++ * varying one that requests were lost. A late callback also shows an offset,
++ * hence the thresholds.
++ */
++static bool cssp_misaligned(struct cssp_camif *c, u32 prev_cb)
++{
++	u32 off, f;
++
++	lockdep_assert_held(&c->qlock);
++
++	div_u64_rem(c->total, c->sizeimage, &off);
++
++	c->mis_hist = (c->mis_hist << 1) & CSSP_MISALIGN_HISTORY;
++	if (!off) {
++		c->mis_same = 0;
++		/* only a lasting aligned stream forgives earlier recoveries */
++		if (++c->aligned_run >= CSSP_RECOVERY_CLEAN)
++			c->recoveries = 0;
++		return false;
++	}
++
++	/*
++	 * The frames completed since the previous callback and the frame in
++	 * progress may be shifted or short: complete them with an error.
++	 */
++	c->aligned_run = 0;
++	for (f = max(prev_cb, c->completed + 1 - min(c->completed + 1, c->n));
++	     f <= c->completed; f++)
++		c->slot_bad[f % c->n] = f + 1;
++
++	c->mis_hist |= 1;
++	if (off == c->mis_off) {
++		c->mis_same++;
++	} else {
++		c->mis_off = off;
++		c->mis_same = 1;
++	}
++
++	return c->mis_same >= CSSP_MISALIGN_SAME ||
++	       hweight16(c->mis_hist) >= CSSP_MISALIGN_HITS;
++}
++
++/* Frames that passed since the last period callback, at least one */
++static u32 cssp_frames_lost(struct cssp_camif *c, u64 now)
++{
++	u64 lost;
++
++	if (!c->frame_ns)
++		return 1;
++
++	lost = div64_u64(now - c->last_cb_ns, c->frame_ns);
++	return clamp_t(u64, lost, 1, U32_MAX / 2);
++}
++
++static void cssp_reset_counters(struct cssp_camif *c, bool restart)
++{
++	u64 now = ktime_get_ns();
++
++	lockdep_assert_held(&c->qlock);
++
++	/*
++	 * The new descriptor starts at slot 0, so the frame index restarts at
++	 * 0; the V4L2 sequence continues with a gap.
++	 */
++	if (restart)
++		c->seq_base += c->completed + cssp_frames_lost(c, now);
++	else
++		c->seq_base = 0;
++
++	c->total = 0;
++	c->last_done = 0;
++	c->completed = 0;
++	c->cb_completed = 0;
++	c->copied = 0;
++	c->aligned_run = 0;
++	memset(c->slot_bad, 0, sizeof(c->slot_bad));
++	/* guard against a partial first frame */
++	c->discard_until = 1;
++	c->last_sample_ns = now;
++	c->last_cb_ns = now;
++	c->mis_off = 0;
++	c->mis_same = 0;
++	c->mis_hist = 0;
++}
++
++static void cssp_dma_period(void *param)
++{
++	struct cssp_camif *c = param;
++	u64 now = ktime_get_ns();
++	u32 prev_cb;
++
++	guard(spinlock_irqsave)(&c->qlock);
++
++	if (!c->streaming || c->recovering)
++		return;
++
++	if (!cssp_account(c, now))
++		return;
++
++	c->last_cb_ns = now;
++	prev_cb = c->cb_completed;
++	c->cb_completed = c->completed;
++
++	/* the start completes the capture setup first */
++	if (!c->started)
++		return;
++
++	if (cssp_misaligned(c, prev_cb)) {
++		dev_dbg(c->dev, "misaligned: offset %u (%u in a row)\n",
++			c->mis_off, c->mis_same);
++		queue_work(system_dfl_wq, &c->recover_work);
++		return;
++	}
++
++	if (c->cb_completed != c->copied)
++		queue_work(c->copy_wq, &c->copy_work);
++
++	mod_delayed_work(system_dfl_wq, &c->watchdog, c->wd_timeout);
++}
++
++/**
++ * cssp_dma_start - start the cyclic transfer over the ring
++ * @c: driver state
++ * @restart: a recovery restart (continues the sequence numbers)
++ *
++ * Called in process context with no driver lock held. The descriptor is
++ * issued before the capture is enabled, so the first request after the
++ * enable lands at the start of slot 0.
++ *
++ * Return: 0 or a negative error code.
++ */
++static int cssp_dma_start(struct cssp_camif *c, bool restart)
++{
++	struct dma_slave_config cfg = {
++		.direction = DMA_DEV_TO_MEM,
++		.src_addr = c->data_dma,
++	};
++	struct dma_async_tx_descriptor *d;
++	dma_cookie_t cookie;
++	int ret;
++
++	/*
++	 * Link validation guarantees this. The DMA driver would otherwise
++	 * drop the remainder of each period.
++	 */
++	if (WARN_ON_ONCE(c->sizeimage % c->req_len))
++		return -EINVAL;
++
++	/* AB-sync: req_len / 4 words per request, all from the data port */
++	cfg.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
++	cfg.src_maxburst = c->req_len / 4;
++
++	ret = dmaengine_slave_config(c->dma, &cfg);
++	if (ret) {
++		dev_err(c->dev, "DMA slave config failed: %d\n", ret);
++		return ret;
++	}
++
++	d = dmaengine_prep_dma_cyclic(c->dma, c->ring_dma, c->ring_len,
++				      c->sizeimage, DMA_DEV_TO_MEM,
++				      DMA_PREP_INTERRUPT);
++	if (!d) {
++		dev_err(c->dev, "failed to prepare the cyclic DMA\n");
++		return -ENOMEM;
++	}
++
++	d->callback = cssp_dma_period;
++	d->callback_param = c;
++	cookie = dmaengine_submit(d);
++	if (dma_submit_error(cookie)) {
++		dev_err(c->dev, "DMA submit failed: %d\n", cookie);
++		return cookie;
++	}
++
++	scoped_guard(spinlock_irqsave, &c->qlock) {
++		c->cookie = cookie;
++		cssp_reset_counters(c, restart);
++	}
++
++	/* clears stale events and enables the hardware request */
++	dma_async_issue_pending(c->dma);
++
++	return 0;
++}
++
++static void cssp_return_buffers(struct cssp_camif *c,
++				enum vb2_buffer_state state)
++{
++	struct cssp_buffer *buf, *tmp;
++	LIST_HEAD(list);
++
++	scoped_guard(spinlock_irqsave, &c->qlock)
++		list_splice_init(&c->pending, &list);
++
++	list_for_each_entry_safe(buf, tmp, &list, list) {
++		list_del(&buf->list);
++		vb2_buffer_done(&buf->vb.vb2_buf, state);
++	}
++}
++
++/*
++ * Copies a raw frame and swaps every byte pair back (the bridge stores the
++ * first byte of a pair in bits 15:8). sizeimage is a multiple of the DMA
++ * request length (64 or 128), so a multiple of 4.
++ */
++static void cssp_copy_swapped(void *dst, const void *src, size_t len)
++{
++	u32 *d = dst;
++	const u32 *s = src;
++	size_t i;
++
++	for (i = 0; i < len / 4; i++) {
++		u32 v = s[i];
++
++		d[i] = ((v & 0x00ff00ffU) << 8) | ((v >> 8) & 0x00ff00ffU);
++	}
++}
++
++/*
++ * Copies the slots of frames that a period callback reported complete into
++ * queued buffers. A buffer is taken from the pending list only for a frame
++ * that is kept, and every buffer taken is completed before the next one is
++ * taken.
++ */
++static void cssp_copy_work(struct work_struct *work)
++{
++	struct cssp_camif *c = container_of(work, struct cssp_camif, copy_work);
++
++	for (;;) {
++		struct cssp_buffer *buf = NULL;
++		u32 frame = 0, seq = 0, slot = 0;
++		bool torn = true, bad = false;
++		size_t off;
++		void *vaddr;
++		u64 ts = 0;
++
++		scoped_guard(spinlock_irqsave, &c->qlock) {
++			if (!c->streaming || c->recovering || !c->started ||
++			    c->copied == c->cb_completed)
++				return;
++
++			frame = c->copied++;
++			seq = c->seq_base + frame;
++			slot = frame % c->n;
++			ts = c->frame_ts[slot];
++			bad = c->slot_bad[slot] == frame + 1;
++
++			/* decide the drop first, take a buffer only for a kept frame */
++			if (frame >= c->discard_until &&
++			    !cssp_slot_reused(c, frame)) {
++				buf = list_first_entry_or_null(&c->pending,
++							       struct cssp_buffer,
++							       list);
++				if (buf)
++					list_del(&buf->list);
++			}
++			if (!buf)
++				c->dropped++;
++		}
++
++		/* dropped (guard, overwritten or no buffer); the sequence advances */
++		if (!buf)
++			continue;
++
++		off = (size_t)slot * c->sizeimage;
++		vaddr = vb2_plane_vaddr(&buf->vb.vb2_buf, 0);
++
++		dma_sync_single_for_cpu(c->dmadev, c->ring_dma + off,
++					c->sizeimage, DMA_FROM_DEVICE);
++		if (vaddr && c->cfmt->raw)
++			cssp_copy_swapped(vaddr, c->ring + off, c->sizeimage);
++		else if (vaddr)
++			memcpy(vaddr, c->ring + off, c->sizeimage);
++		dma_sync_single_for_device(c->dmadev, c->ring_dma + off,
++					   c->sizeimage, DMA_FROM_DEVICE);
++
++		scoped_guard(spinlock_irqsave, &c->qlock) {
++			/*
++			 * The slot is intact only if a valid sample taken
++			 * after the copy shows that the DMA has not re-entered
++			 * it. Without a valid sample (stop or recovery in
++			 * progress, implausible position) the last valid
++			 * total is only a lower bound, so the frame counts
++			 * as torn. A misaligned period callback may also have
++			 * marked the frame bad since it was taken.
++			 */
++			torn = !vaddr || !cssp_account(c, ktime_get_ns()) ||
++			       cssp_slot_reused(c, frame) ||
++			       c->slot_bad[slot] == frame + 1;
++		}
++		torn |= bad;
++
++		buf->vb.sequence = seq;
++		buf->vb.field = V4L2_FIELD_NONE;
++		buf->vb.vb2_buf.timestamp = ts;
++		vb2_buffer_done(&buf->vb.vb2_buf,
++				torn ? VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE);
++	}
++}
++
++/*
++ * Restarts the DMA and the capture enable pulse; the sensor keeps
++ * streaming. Takes only hw_lock and qlock, never touches the reset line or
++ * the sensor. Escalates to vb2_queue_error() when the bridge does not answer
++ * or after %CSSP_MAX_RECOVERIES recoveries without %CSSP_RECOVERY_CLEAN
++ * aligned period callbacks in a row in between.
++ */
++static void cssp_recover_work(struct work_struct *work)
++{
++	struct cssp_camif *c = container_of(work, struct cssp_camif,
++					    recover_work);
++	bool fatal = false;
++	bool run = false;
++	u32 seq = 0;
++
++	/* never a synchronous resume here */
++	if (pm_runtime_get_if_active(c->dev) <= 0)
++		return;
++
++	scoped_guard(spinlock_irqsave, &c->qlock) {
++		run = c->streaming;
++		c->recovering = run;
++	}
++	if (!run)
++		goto out;
++
++	scoped_guard(mutex, &c->hw_lock)
++		cssp_capture_enable(c, false);
++	dmaengine_terminate_sync(c->dma);
++	/* different workqueue: no self-flush */
++	flush_work(&c->copy_work);
++
++	scoped_guard(mutex, &c->hw_lock)
++		fatal = !cssp_check_revision(c);
++	if (fatal)
++		dev_err(c->dev, "bridge lost power or does not answer\n");
++
++	/* checked before the restart, so a failed stream stays stopped */
++	scoped_guard(spinlock_irqsave, &c->qlock) {
++		run = c->streaming;
++		if (run && !fatal && ++c->recoveries > CSSP_MAX_RECOVERIES) {
++			dev_err(c->dev, "%u recoveries without a lasting aligned stream\n",
++				c->recoveries - 1);
++			fatal = true;
++		}
++	}
++	if (!run || fatal)
++		goto done;
++
++	fatal = cssp_dma_start(c, true) != 0;
++	if (!fatal) {
++		scoped_guard(mutex, &c->hw_lock)
++			fatal = cssp_capture_enable(c, true) != 0;
++		if (fatal) {
++			dev_err(c->dev, "no data after the recovery\n");
++			dmaengine_terminate_sync(c->dma);
++		}
++	}
++	if (fatal)
++		goto done;
++
++	scoped_guard(spinlock_irqsave, &c->qlock) {
++		c->recovering = false;
++		if (c->streaming)
++			mod_delayed_work(system_dfl_wq, &c->watchdog,
++					 c->wd_timeout);
++		seq = c->seq_base;
++	}
++	dev_dbg(c->dev, "recovered, sequence continues at %u\n", seq);
++
++done:
++	/*
++	 * On a fatal error the DMA stays terminated and recovering stays set,
++	 * so nothing is copied or re-armed until the stream is stopped.
++	 */
++	if (fatal)
++		vb2_queue_error(&c->queue);
++out:
++	pm_runtime_put(c->dev);
++}
++
++static void cssp_watchdog_work(struct work_struct *work)
++{
++	struct cssp_camif *c = container_of(to_delayed_work(work),
++					    struct cssp_camif, watchdog);
++
++	guard(spinlock_irqsave)(&c->qlock);
++
++	if (!c->streaming || c->recovering || !c->started)
++		return;
++
++	dev_warn_ratelimited(c->dev, "no frame for %u ms, recovering\n",
++			     jiffies_to_msecs(c->wd_timeout));
++	queue_work(system_dfl_wq, &c->recover_work);
++}
++
++/*
++ * Stops everything that can run asynchronously. After step 1 nothing queues
++ * work or re-arms the watchdog; the recovery restarts the DMA, so it is
++ * cancelled before the final terminate; no callback runs after the
++ * terminate.
++ */
++static void cssp_quiesce(struct cssp_camif *c)
++{
++	scoped_guard(spinlock_irqsave, &c->qlock) {
++		c->streaming = false;
++		c->started = false;
++	}
++	cancel_delayed_work_sync(&c->watchdog);
++	cancel_work_sync(&c->recover_work);
++	dmaengine_terminate_sync(c->dma);
++	cancel_work_sync(&c->copy_work);
++}
++
++/* -----------------------------------------------------------------------------
++ * vb2 queue
++ */
++
++static int cssp_queue_setup(struct vb2_queue *q, unsigned int *nbuffers,
++			    unsigned int *nplanes, unsigned int sizes[],
++			    struct device *alloc_devs[])
++{
++	struct cssp_camif *c = vb2_get_drv_priv(q);
++
++	if (*nplanes)
++		return *nplanes != 1 || sizes[0] < c->fmt.sizeimage ? -EINVAL : 0;
++
++	*nplanes = 1;
++	sizes[0] = c->fmt.sizeimage;
++
++	return 0;
++}
++
++static int cssp_buf_prepare(struct vb2_buffer *vb)
++{
++	struct cssp_camif *c = vb2_get_drv_priv(vb->vb2_queue);
++
++	if (vb2_plane_size(vb, 0) < c->fmt.sizeimage)
++		return -EINVAL;
++
++	vb2_set_plane_payload(vb, 0, c->fmt.sizeimage);
++
++	return 0;
++}
++
++static void cssp_buf_queue(struct vb2_buffer *vb)
++{
++	struct cssp_camif *c = vb2_get_drv_priv(vb->vb2_queue);
++	struct cssp_buffer *buf = to_cssp_buffer(to_vb2_v4l2_buffer(vb));
++
++	guard(spinlock_irqsave)(&c->qlock);
++	list_add_tail(&buf->list, &c->pending);
++}
++
++/* Frame interval of the source in ns, 0 if the sensor does not report it */
++static u64 cssp_source_frame_ns(struct cssp_camif *c)
++{
++	struct v4l2_subdev_frame_interval fi = {
++		.pad = c->source_pad,
++		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
++	};
++
++	if (v4l2_subdev_call_state_active(c->source, pad, get_frame_interval,
++					  &fi))
++		return 0;
++	if (!fi.interval.numerator || !fi.interval.denominator)
++		return 0;
++
++	return div_u64((u64)fi.interval.numerator * NSEC_PER_SEC,
++		       fi.interval.denominator);
++}
++
++static void cssp_setup_timing(struct cssp_camif *c)
++{
++	unsigned int ms;
++
++	c->frame_ns = cssp_source_frame_ns(c);
++	if (!c->frame_ns) {
++		c->wd_timeout = msecs_to_jiffies(CSSP_WD_DEFAULT_MS);
++		return;
++	}
++
++	ms = div_u64(CSSP_WD_FRAMES * c->frame_ns, NSEC_PER_MSEC);
++	c->wd_timeout = msecs_to_jiffies(max(ms, CSSP_WD_MIN_MS));
++
++	/* the budget is an estimate, to be replaced by a measured rate */
++	if (div64_u64((u64)c->sizeimage * NSEC_PER_SEC, c->frame_ns) >
++	    CSSP_BUDGET_FALLBACK)
++		dev_warn(c->dev,
++			 "%u bytes per frame every %llu us exceeds the %llu MB/s DMA budget\n",
++			 c->sizeimage, div_u64(c->frame_ns, NSEC_PER_USEC),
++			 div_u64(CSSP_BUDGET_FALLBACK, 1000000));
++}
++
++static int cssp_start_streaming(struct vb2_queue *q, unsigned int count)
++{
++	struct cssp_camif *c = vb2_get_drv_priv(q);
++	int ret;
++
++	if (!c->source) {
++		ret = -ENODEV;
++		goto err_return;
++	}
++
++	/* rails on, mode register rewritten */
++	ret = pm_runtime_resume_and_get(c->dev);
++	if (ret)
++		goto err_return;
++
++	ret = video_device_pipeline_start(&c->vdev, &c->pipe);
++	if (ret)
++		goto err_pm;
++	c->pipe_stopped = false;
++
++	c->sizeimage = c->fmt.sizeimage;
++	cssp_setup_timing(c);
++
++	ret = cssp_ring_alloc(c);
++	if (ret)
++		goto err_pipeline;
++
++	scoped_guard(spinlock_irqsave, &c->qlock) {
++		c->streaming = true;
++		c->started = false;
++		c->recovering = false;
++		c->recoveries = 0;
++		c->dropped = 0;
++	}
++
++	ret = cssp_dma_start(c, false);
++	if (ret)
++		goto err_quiesce;
++
++	/* sensor on, then the capture enable pulse */
++	ret = v4l2_subdev_enable_streams(&c->bridge, CSSP_PAD_SOURCE, BIT_ULL(0));
++	if (ret)
++		goto err_quiesce;
++
++	scoped_guard(spinlock_irqsave, &c->qlock) {
++		c->started = true;
++		if (c->cb_completed != c->copied)
++			queue_work(c->copy_wq, &c->copy_work);
++		mod_delayed_work(system_dfl_wq, &c->watchdog, c->wd_timeout);
++	}
++
++	return 0;
++
++err_quiesce:
++	cssp_quiesce(c);
++	cssp_ring_free(c);
++err_pipeline:
++	video_device_pipeline_stop(&c->vdev);
++err_pm:
++	pm_runtime_put_autosuspend(c->dev);
++err_return:
++	cssp_return_buffers(c, VB2_BUF_STATE_QUEUED);
++	return ret;
++}
++
++static void cssp_stop_streaming(struct vb2_queue *q)
++{
++	struct cssp_camif *c = vb2_get_drv_priv(q);
++
++	cssp_quiesce(c);
++	/* a sensor unbind already stopped the subdevs and the pipeline */
++	if (!c->pipe_stopped)
++		/* capture enable off, sensor off */
++		v4l2_subdev_disable_streams(&c->bridge, CSSP_PAD_SOURCE,
++					    BIT_ULL(0));
++	cssp_return_buffers(c, VB2_BUF_STATE_ERROR);
++	cssp_ring_free(c);
++	if (!c->pipe_stopped)
++		video_device_pipeline_stop(&c->vdev);
++	c->pipe_stopped = false;
++	pm_runtime_put_autosuspend(c->dev);
++
++	dev_dbg(c->dev, "stopped, %u frames dropped\n", c->dropped);
++}
++
++static const struct vb2_ops cssp_qops = {
++	.queue_setup = cssp_queue_setup,
++	.buf_prepare = cssp_buf_prepare,
++	.buf_queue = cssp_buf_queue,
++	.start_streaming = cssp_start_streaming,
++	.stop_streaming = cssp_stop_streaming,
++};
++
++/* -----------------------------------------------------------------------------
++ * Video node
++ */
++
++static void cssp_try_fmt(const struct cssp_camif *c,
++			 struct v4l2_pix_format *pix,
++			 const struct cssp_format **cfmt)
++{
++	const struct cssp_format *f = cssp_find_fourcc(c, pix->pixelformat);
++
++	if (!f)
++		f = &cssp_formats[0];
++
++	/* the size is kept as requested within the limits (libcamera needs it) */
++	pix->pixelformat = f->fourcc;
++	pix->width = clamp(pix->width, CSSP_MIN_WIDTH, CSSP_MAX_WIDTH);
++	pix->height = clamp(pix->height, CSSP_MIN_HEIGHT, CSSP_MAX_HEIGHT);
++	pix->field = V4L2_FIELD_NONE;
++	pix->bytesperline = pix->width * f->bpp;
++	pix->sizeimage = pix->bytesperline * pix->height;
++	/* the bridge passes the data through and cannot convert colorspaces */
++	pix->colorspace = f->raw ? V4L2_COLORSPACE_RAW : V4L2_COLORSPACE_SRGB;
++	pix->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
++	pix->quantization = V4L2_QUANTIZATION_DEFAULT;
++	pix->xfer_func = V4L2_XFER_FUNC_DEFAULT;
++	pix->flags = 0;
++
++	if (cfmt)
++		*cfmt = f;
++}
++
++static int cssp_querycap(struct file *file, void *fh,
++			 struct v4l2_capability *cap)
++{
++	strscpy(cap->driver, CSSP_DRV_NAME, sizeof(cap->driver));
++	strscpy(cap->card, CSSP_MODEL, sizeof(cap->card));
++
++	return 0;
++}
++
++static int cssp_enum_fmt(struct file *file, void *fh, struct v4l2_fmtdesc *f)
++{
++	struct cssp_camif *c = video_drvdata(file);
++	const struct cssp_format *fmt;
++
++	if (f->mbus_code) {
++		/* the video node sits behind the bridge source pad */
++		fmt = cssp_find_src_code(c, f->mbus_code);
++		if (!fmt || f->index)
++			return -EINVAL;
++	} else {
++		fmt = cssp_nth_format(c, f->index);
++		if (!fmt)
++			return -EINVAL;
++	}
++
++	f->pixelformat = fmt->fourcc;
++
++	return 0;
++}
++
++static int cssp_enum_framesizes(struct file *file, void *fh,
++				struct v4l2_frmsizeenum *fsize)
++{
++	if (fsize->index ||
++	    !cssp_find_fourcc(video_drvdata(file), fsize->pixel_format))
++		return -EINVAL;
++
++	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
++	fsize->stepwise.min_width = CSSP_MIN_WIDTH;
++	fsize->stepwise.max_width = CSSP_MAX_WIDTH;
++	fsize->stepwise.step_width = 1;
++	fsize->stepwise.min_height = CSSP_MIN_HEIGHT;
++	fsize->stepwise.max_height = CSSP_MAX_HEIGHT;
++	fsize->stepwise.step_height = 1;
++
++	return 0;
++}
++
++static int cssp_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
++{
++	struct cssp_camif *c = video_drvdata(file);
++
++	f->fmt.pix = c->fmt;
++
++	return 0;
++}
++
++static int cssp_try_fmt_vid_cap(struct file *file, void *fh,
++				struct v4l2_format *f)
++{
++	cssp_try_fmt(video_drvdata(file), &f->fmt.pix, NULL);
++
++	return 0;
++}
++
++static int cssp_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
++{
++	struct cssp_camif *c = video_drvdata(file);
++
++	if (vb2_is_busy(&c->queue))
++		return -EBUSY;
++
++	cssp_try_fmt(c, &f->fmt.pix, &c->cfmt);
++	c->fmt = f->fmt.pix;
++
++	return 0;
++}
++
++static const struct v4l2_ioctl_ops cssp_ioctl_ops = {
++	.vidioc_querycap = cssp_querycap,
++	.vidioc_enum_fmt_vid_cap = cssp_enum_fmt,
++	.vidioc_enum_framesizes = cssp_enum_framesizes,
++	.vidioc_g_fmt_vid_cap = cssp_g_fmt,
++	.vidioc_try_fmt_vid_cap = cssp_try_fmt_vid_cap,
++	.vidioc_s_fmt_vid_cap = cssp_s_fmt,
++	.vidioc_reqbufs = vb2_ioctl_reqbufs,
++	.vidioc_create_bufs = vb2_ioctl_create_bufs,
++	.vidioc_prepare_buf = vb2_ioctl_prepare_buf,
++	.vidioc_querybuf = vb2_ioctl_querybuf,
++	.vidioc_qbuf = vb2_ioctl_qbuf,
++	.vidioc_dqbuf = vb2_ioctl_dqbuf,
++	.vidioc_expbuf = vb2_ioctl_expbuf,
++	.vidioc_streamon = vb2_ioctl_streamon,
++	.vidioc_streamoff = vb2_ioctl_streamoff,
++};
++
++static const struct v4l2_file_operations cssp_fops = {
++	.owner = THIS_MODULE,
++	.open = v4l2_fh_open,
++	.release = vb2_fop_release,
++	.unlocked_ioctl = video_ioctl2,
++	.poll = vb2_fop_poll,
++	.mmap = vb2_fop_mmap,
++};
++
++/*
++ * The bridge source format must match the video node format, and each frame
++ * must be a whole number of DMA requests.
++ */
++static int cssp_video_link_validate(struct media_link *link)
++{
++	struct video_device *vdev =
++		media_entity_to_video_device(link->sink->entity);
++	struct cssp_camif *c = container_of(vdev, struct cssp_camif, vdev);
++	struct v4l2_subdev_format sfmt = {
++		.pad = CSSP_PAD_SOURCE,
++		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
++	};
++	int ret;
++
++	ret = v4l2_subdev_call_state_active(&c->bridge, pad, get_fmt, &sfmt);
++	if (ret)
++		return ret;
++
++	if (debug_skip_size_check) {
++		dev_warn(c->dev, "debug: frame size check skipped\n");
++	} else if (sfmt.format.code != cssp_src_code(c->cfmt) ||
++		   sfmt.format.width != c->fmt.width ||
++		   sfmt.format.height != c->fmt.height) {
++		dev_dbg(c->dev, "format mismatch: bridge 0x%04x %ux%u, video %p4cc %ux%u\n",
++			sfmt.format.code, sfmt.format.width, sfmt.format.height,
++			&c->fmt.pixelformat, c->fmt.width, c->fmt.height);
++		return -EPIPE;
++	}
++
++	if (c->fmt.sizeimage % c->req_len) {
++		dev_dbg(c->dev, "frame size %u is not a multiple of %u bytes\n",
++			c->fmt.sizeimage, c->req_len);
++		return -EPIPE;
++	}
++
++	return 0;
++}
++
++static const struct media_entity_operations cssp_video_entity_ops = {
++	.link_validate = cssp_video_link_validate,
++};
++
++/* -----------------------------------------------------------------------------
++ * Bridge subdev
++ */
++
++static void cssp_default_mbus_fmt(struct v4l2_mbus_framefmt *fmt)
++{
++	*fmt = (struct v4l2_mbus_framefmt) {
++		.width = CSSP_DEF_WIDTH,
++		.height = CSSP_DEF_HEIGHT,
++		.code = cssp_formats[0].code,
++		.field = V4L2_FIELD_NONE,
++		.colorspace = V4L2_COLORSPACE_SRGB,
++		.ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT,
++		.quantization = V4L2_QUANTIZATION_DEFAULT,
++		.xfer_func = V4L2_XFER_FUNC_DEFAULT,
++	};
++}
++
++static int cssp_bridge_init_state(struct v4l2_subdev *sd,
++				  struct v4l2_subdev_state *state)
++{
++	cssp_default_mbus_fmt(v4l2_subdev_state_get_format(state, CSSP_PAD_SINK));
++	cssp_default_mbus_fmt(v4l2_subdev_state_get_format(state, CSSP_PAD_SOURCE));
++
++	return 0;
++}
++
++static int cssp_bridge_enum_mbus_code(struct v4l2_subdev *sd,
++				      struct v4l2_subdev_state *state,
++				      struct v4l2_subdev_mbus_code_enum *code)
++{
++	struct cssp_camif *c = sd_to_cssp(sd);
++	const struct cssp_format *f;
++
++	if (code->pad == CSSP_PAD_SINK) {
++		f = cssp_nth_format(c, code->index);
++		if (!f)
++			return -EINVAL;
++		code->code = f->code;
++		return 0;
++	}
++
++	/* no conversion: the source carries the code of the sink's entry */
++	if (code->index)
++		return -EINVAL;
++	f = cssp_find_code(c, v4l2_subdev_state_get_format(state,
++							   CSSP_PAD_SINK)->code);
++	if (!f)
++		return -EINVAL;
++	code->code = cssp_src_code(f);
++
++	return 0;
++}
++
++static int cssp_bridge_enum_frame_size(struct v4l2_subdev *sd,
++				       struct v4l2_subdev_state *state,
++				       struct v4l2_subdev_frame_size_enum *fse)
++{
++	struct cssp_camif *c = sd_to_cssp(sd);
++	const struct cssp_format *f;
++	const struct v4l2_mbus_framefmt *sink;
++
++	if (fse->index)
++		return -EINVAL;
++
++	if (fse->pad == CSSP_PAD_SINK) {
++		if (!cssp_find_code(c, fse->code))
++			return -EINVAL;
++		fse->min_width = CSSP_MIN_WIDTH;
++		fse->max_width = CSSP_MAX_WIDTH;
++		fse->min_height = CSSP_MIN_HEIGHT;
++		fse->max_height = CSSP_MAX_HEIGHT;
++		return 0;
++	}
++
++	sink = v4l2_subdev_state_get_format(state, CSSP_PAD_SINK);
++	f = cssp_find_code(c, sink->code);
++	if (!f || fse->code != cssp_src_code(f))
++		return -EINVAL;
++	fse->min_width = sink->width;
++	fse->max_width = sink->width;
++	fse->min_height = sink->height;
++	fse->max_height = sink->height;
++
++	return 0;
++}
++
++static int cssp_bridge_set_fmt(struct v4l2_subdev *sd,
++			       struct v4l2_subdev_state *state,
++			       struct v4l2_subdev_format *format)
++{
++	struct cssp_camif *c = sd_to_cssp(sd);
++	struct v4l2_mbus_framefmt *fmt = &format->format;
++	const struct cssp_format *f;
++
++	/* the source format follows the sink: no scaling, no conversion */
++	if (format->pad == CSSP_PAD_SOURCE)
++		return v4l2_subdev_get_fmt(sd, state, format);
++
++	if (!cssp_find_code(c, fmt->code))
++		fmt->code = cssp_formats[0].code;
++	fmt->width = clamp(fmt->width, CSSP_MIN_WIDTH, CSSP_MAX_WIDTH);
++	fmt->height = clamp(fmt->height, CSSP_MIN_HEIGHT, CSSP_MAX_HEIGHT);
++	fmt->field = V4L2_FIELD_NONE;
++	if (fmt->colorspace == V4L2_COLORSPACE_DEFAULT)
++		fmt->colorspace = V4L2_COLORSPACE_SRGB;
++
++	*v4l2_subdev_state_get_format(state, CSSP_PAD_SINK) = *fmt;
++	*v4l2_subdev_state_get_format(state, CSSP_PAD_SOURCE) = *fmt;
++
++	/* the source pad carries the entry's source code, if it has one */
++	f = cssp_find_code(c, fmt->code);
++	v4l2_subdev_state_get_format(state, CSSP_PAD_SOURCE)->code =
++		cssp_src_code(f);
++
++	return 0;
++}
++
++/*
++ * Called with the bridge state locked. hw_lock is taken only around the
++ * enable pulse, never across a sensor call. After a failed sensor enable
++ * nothing is undone (the sensor stream is not enabled); after each enable
++ * timeout the sensor stream is disabled again before the next try.
++ */
++static int cssp_bridge_enable_streams(struct v4l2_subdev *sd,
++				      struct v4l2_subdev_state *state,
++				      u32 pad, u64 streams_mask)
++{
++	struct cssp_camif *c = sd_to_cssp(sd);
++	unsigned int try;
++	int ret = -EAGAIN;
++
++	if (!c->source)
++		return -ENODEV;
++
++	for (try = 0; try < CSSP_ENABLE_TRIES; try++) {
++		ret = v4l2_subdev_enable_streams(c->source, c->source_pad,
++						 BIT_ULL(0));
++		if (ret)
++			return ret;
++
++		scoped_guard(mutex, &c->hw_lock)
++			ret = cssp_capture_enable(c, true);
++		if (ret != -EAGAIN)
++			break;
++
++		dev_warn(c->dev, "no data from the sensor, try %u of %u\n",
++			 try + 1, CSSP_ENABLE_TRIES);
++		v4l2_subdev_disable_streams(c->source, c->source_pad,
++					    BIT_ULL(0));
++	}
++
++	if (ret && ret != -EAGAIN)
++		v4l2_subdev_disable_streams(c->source, c->source_pad,
++					    BIT_ULL(0));
++
++	/* after the last -EAGAIN the sensor stream is already off */
++	return ret;
++}
++
++static int cssp_bridge_disable_streams(struct v4l2_subdev *sd,
++				       struct v4l2_subdev_state *state,
++				       u32 pad, u64 streams_mask)
++{
++	struct cssp_camif *c = sd_to_cssp(sd);
++
++	scoped_guard(mutex, &c->hw_lock)
++		cssp_capture_enable(c, false);
++
++	/* the sensor may have been unbound while streaming */
++	if (c->source)
++		v4l2_subdev_disable_streams(c->source, c->source_pad,
++					    BIT_ULL(0));
++
++	return 0;
++}
++
++static const struct v4l2_subdev_video_ops cssp_bridge_video_ops = {
++	.s_stream = v4l2_subdev_s_stream_helper,
++};
++
++static const struct v4l2_subdev_pad_ops cssp_bridge_pad_ops = {
++	.enum_mbus_code = cssp_bridge_enum_mbus_code,
++	.enum_frame_size = cssp_bridge_enum_frame_size,
++	.get_fmt = v4l2_subdev_get_fmt,
++	.set_fmt = cssp_bridge_set_fmt,
++	.enable_streams = cssp_bridge_enable_streams,
++	.disable_streams = cssp_bridge_disable_streams,
++};
++
++static const struct v4l2_subdev_ops cssp_bridge_ops = {
++	.video = &cssp_bridge_video_ops,
++	.pad = &cssp_bridge_pad_ops,
++};
++
++static const struct v4l2_subdev_internal_ops cssp_bridge_internal_ops = {
++	.init_state = cssp_bridge_init_state,
++};
++
++static const struct media_entity_operations cssp_bridge_entity_ops = {
++	.link_validate = v4l2_subdev_link_validate,
++};
++
++/* -----------------------------------------------------------------------------
++ * Orientation and async notifier
++ */
++
++/*
++ * A high orientation input means a back-facing sensor board. As the 3.8
++ * driver did, set the initial VFLIP value on the first subdev upstream of
++ * the bridge that has the control; userspace can change it later.
++ */
++static void cssp_apply_orientation(struct cssp_camif *c)
++{
++	struct media_entity *entity = &c->bridge.entity;
++	struct v4l2_ctrl *ctrl = NULL;
++	int val, ret;
++
++	if (!c->orient)
++		return;
++
++	val = gpiod_get_value_cansleep(c->orient);
++	if (val < 0) {
++		dev_warn(c->dev, "cannot read the orientation input: %d\n", val);
++		return;
++	}
++	dev_dbg(c->dev, "sensor faces the %s\n", val ? "back" : "front");
++	if (!val)
++		return;
++
++	scoped_guard(mutex, &c->mdev.graph_mutex) {
++		for (;;) {
++			struct media_pad *remote = NULL;
++			struct v4l2_subdev *sd;
++			unsigned int i;
++
++			for (i = 0; i < entity->num_pads; i++) {
++				if (!(entity->pads[i].flags & MEDIA_PAD_FL_SINK))
++					continue;
++				remote = media_pad_remote_pad_first(&entity->pads[i]);
++				if (remote)
++					break;
++			}
++			if (!remote ||
++			    !is_media_entity_v4l2_subdev(remote->entity))
++				break;
++
++			entity = remote->entity;
++			sd = media_entity_to_v4l2_subdev(entity);
++			ctrl = v4l2_ctrl_find(sd->ctrl_handler, V4L2_CID_VFLIP);
++			if (ctrl)
++				break;
++		}
++	}
++
++	if (!ctrl) {
++		dev_warn(c->dev, "back-facing sensor, but no VFLIP control found\n");
++		return;
++	}
++
++	ret = v4l2_ctrl_s_ctrl(ctrl, 1);
++	if (ret)
++		dev_warn(c->dev, "failed to set VFLIP: %d\n", ret);
++}
++
++static int cssp_notify_bound(struct v4l2_async_notifier *notifier,
++			     struct v4l2_subdev *sd,
++			     struct v4l2_async_connection *asc)
++{
++	struct cssp_camif *c = notifier_to_cssp(notifier);
++	struct device_link *link = NULL;
++	int pad, ret;
++
++	guard(mutex)(&c->vlock);
++
++	if (c->source)
++		return -EBUSY;
++
++	pad = media_entity_get_fwnode_pad(&sd->entity, asc->match.fwnode,
++					  MEDIA_PAD_FL_SOURCE);
++	if (pad < 0) {
++		dev_err(c->dev, "no source pad on %s: %d\n", sd->name, pad);
++		return pad;
++	}
++
++	ret = media_create_pad_link(&sd->entity, pad, &c->bridge.entity,
++				    CSSP_PAD_SINK, MEDIA_LNK_FL_ENABLED |
++				    MEDIA_LNK_FL_IMMUTABLE);
++	if (ret) {
++		dev_err(c->dev, "failed to link %s: %d\n", sd->name, ret);
++		return ret;
++	}
++
++	/*
++	 * Resuming the sensor resumes the bridge first, and system sleep is
++	 * ordered. No DL_FLAG_RPM_ACTIVE: it would keep the bridge powered
++	 * until the sensor's next resume/suspend cycle if the sensor is
++	 * already suspended. The link is not a safety condition (no reset
++	 * pulse), so a failure only costs the PM coupling.
++	 */
++	if (sd->dev)
++		link = device_link_add(sd->dev, c->dev,
++				       DL_FLAG_STATELESS | DL_FLAG_PM_RUNTIME);
++	if (!link)
++		dev_warn(c->dev, "no device link to %s\n", sd->name);
++
++	c->source = sd;
++	c->source_pad = pad;
++	c->link = link;
++
++	dev_dbg(c->dev, "bound %s pad %d\n", sd->name, pad);
++
++	return 0;
++}
++
++static void cssp_notify_unbind(struct v4l2_async_notifier *notifier,
++			       struct v4l2_subdev *sd,
++			       struct v4l2_async_connection *asc)
++{
++	struct cssp_camif *c = notifier_to_cssp(notifier);
++
++	guard(mutex)(&c->vlock);
++
++	if (c->source != sd)
++		return;
++
++	/*
++	 * The stream cannot continue without its sensor, and the sensor's
++	 * pads may be freed once it is gone. Stop everything that touches
++	 * them now, while the sensor is still valid: the subdev streams and
++	 * the media pipeline, which writes to every pad in it when stopped.
++	 * The vlock held here serialises this against stop_streaming(),
++	 * which then only releases the rest.
++	 */
++	if (vb2_start_streaming_called(&c->queue) && !c->pipe_stopped) {
++		cssp_quiesce(c);
++		v4l2_subdev_disable_streams(&c->bridge, CSSP_PAD_SOURCE,
++					    BIT_ULL(0));
++		video_device_pipeline_stop(&c->vdev);
++		c->pipe_stopped = true;
++		vb2_queue_error(&c->queue);
++	}
++
++	if (c->link)
++		device_link_del(c->link);
++	c->link = NULL;
++	c->source = NULL;
++}
++
++static int cssp_notify_complete(struct v4l2_async_notifier *notifier)
++{
++	struct cssp_camif *c = notifier_to_cssp(notifier);
++	int ret;
++
++	ret = v4l2_device_register_subdev_nodes(&c->v4l2_dev);
++	if (ret)
++		return ret;
++
++	cssp_apply_orientation(c);
++
++	return 0;
++}
++
++static const struct v4l2_async_notifier_operations cssp_notify_ops = {
++	.bound = cssp_notify_bound,
++	.unbind = cssp_notify_unbind,
++	.complete = cssp_notify_complete,
++};
++
++/* -----------------------------------------------------------------------------
++ * Probe and remove
++ */
++
++static int cssp_parse_endpoint(struct cssp_camif *c)
++{
++	struct v4l2_fwnode_endpoint vep = { .bus_type = V4L2_MBUS_PARALLEL };
++	struct fwnode_handle *ep;
++	unsigned int flags;
++	int ret;
++
++	ep = fwnode_graph_get_endpoint_by_id(dev_fwnode(c->dev), 0, 0, 0);
++	if (!ep)
++		return dev_err_probe(c->dev, -ENODEV, "no endpoint\n");
++
++	ret = v4l2_fwnode_endpoint_parse(ep, &vep);
++	fwnode_handle_put(ep);
++	if (ret)
++		return dev_err_probe(c->dev, ret, "invalid parallel endpoint\n");
++
++	flags = vep.bus.parallel.flags;
++	c->bus_width = vep.bus.parallel.bus_width ?: 8;
++	if (c->bus_width != 8 && c->bus_width != 10)
++		return dev_err_probe(c->dev, -EINVAL, "unsupported bus width %u\n",
++				     c->bus_width);
++
++	/* HS_EN was always set by the 3.8 driver */
++	c->mode = CSSP_MODE_HS_EN;
++	if (c->bus_width == 8)
++		c->mode |= CSSP_MODE_FMT_2X8_EN;
++	else
++		dev_warn(c->dev, "10-bit bus mode was never tested\n");
++
++	/* falling edge unless the endpoint asks for the rising edge */
++	c->pclk_falling = !(flags & V4L2_MBUS_PCLK_SAMPLE_RISING);
++	if (c->pclk_falling)
++		c->mode |= CSSP_MODE_PCLK_POL;
++
++	/* hsync/vsync: no bridge setting, the binding allows active high only */
++	return 0;
++}
++
++static int cssp_async_init(struct cssp_camif *c)
++{
++	struct v4l2_async_connection *asc;
++	struct fwnode_handle *ep;
++	int ret;
++
++	v4l2_async_nf_init(&c->notifier, &c->v4l2_dev);
++	c->notifier.ops = &cssp_notify_ops;
++
++	ep = fwnode_graph_get_endpoint_by_id(dev_fwnode(c->dev), 0, 0, 0);
++	if (!ep)
++		return -ENODEV;
++
++	asc = v4l2_async_nf_add_fwnode_remote(&c->notifier, ep,
++					      struct v4l2_async_connection);
++	fwnode_handle_put(ep);
++	if (IS_ERR(asc))
++		return PTR_ERR(asc);
++
++	ret = v4l2_async_nf_register(&c->notifier);
++	if (ret)
++		dev_err(c->dev, "failed to register the notifier: %d\n", ret);
++
++	return ret;
++}
++
++static int cssp_bridge_init(struct cssp_camif *c)
++{
++	struct v4l2_subdev *sd = &c->bridge;
++	int ret;
++
++	v4l2_subdev_init(sd, &cssp_bridge_ops);
++	sd->internal_ops = &cssp_bridge_internal_ops;
++	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
++	sd->entity.function = MEDIA_ENT_F_VID_IF_BRIDGE;
++	sd->entity.ops = &cssp_bridge_entity_ops;
++	sd->owner = THIS_MODULE;
++	sd->dev = c->dev;
++	strscpy(sd->name, CSSP_DRV_NAME, sizeof(sd->name));
++	v4l2_set_subdevdata(sd, c);
++
++	c->bridge_pads[CSSP_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
++	c->bridge_pads[CSSP_PAD_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
++	ret = media_entity_pads_init(&sd->entity, CSSP_NUM_PADS, c->bridge_pads);
++	if (ret)
++		return ret;
++
++	ret = v4l2_subdev_init_finalize(sd);
++	if (ret)
++		return ret;
++
++	return v4l2_device_register_subdev(&c->v4l2_dev, sd);
++}
++
++static int cssp_video_init(struct cssp_camif *c)
++{
++	struct video_device *vdev = &c->vdev;
++	struct vb2_queue *q = &c->queue;
++	int ret;
++
++	c->fmt.pixelformat = cssp_formats[0].fourcc;
++	c->fmt.width = CSSP_DEF_WIDTH;
++	c->fmt.height = CSSP_DEF_HEIGHT;
++	cssp_try_fmt(c, &c->fmt, &c->cfmt);
++
++	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++	q->io_modes = VB2_MMAP | VB2_DMABUF;
++	q->drv_priv = c;
++	q->buf_struct_size = sizeof(struct cssp_buffer);
++	q->ops = &cssp_qops;
++	/* the DMA writes the bounce ring; the CPU copies into the buffers */
++	q->mem_ops = &vb2_vmalloc_memops;
++	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC |
++			     V4L2_BUF_FLAG_TSTAMP_SRC_EOF;
++	q->min_queued_buffers = 1;
++	q->lock = &c->vlock;
++	q->dev = c->dev;
++	ret = vb2_queue_init(q);
++	if (ret)
++		return ret;
++
++	strscpy(vdev->name, CSSP_DRV_NAME " capture", sizeof(vdev->name));
++	vdev->fops = &cssp_fops;
++	vdev->ioctl_ops = &cssp_ioctl_ops;
++	/* the structure is freed by the v4l2_device release */
++	vdev->release = video_device_release_empty;
++	vdev->v4l2_dev = &c->v4l2_dev;
++	vdev->queue = q;
++	vdev->lock = &c->vlock;
++	vdev->vfl_dir = VFL_DIR_RX;
++	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
++			    V4L2_CAP_IO_MC;
++	vdev->entity.function = MEDIA_ENT_F_IO_V4L;
++	vdev->entity.ops = &cssp_video_entity_ops;
++	video_set_drvdata(vdev, c);
++
++	c->vdev_pad.flags = MEDIA_PAD_FL_SINK;
++	ret = media_entity_pads_init(&vdev->entity, 1, &c->vdev_pad);
++	if (ret)
++		return ret;
++
++	ret = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
++	if (ret)
++		return ret;
++
++	ret = media_create_pad_link(&c->bridge.entity, CSSP_PAD_SOURCE,
++				    &vdev->entity, 0, MEDIA_LNK_FL_ENABLED |
++				    MEDIA_LNK_FL_IMMUTABLE);
++	if (ret)
++		vb2_video_unregister_device(vdev);
++
++	return ret;
++}
++
++/* Last reference to the V4L2 device gone: no file is open any more */
++static void cssp_v4l2_release(struct v4l2_device *v4l2_dev)
++{
++	struct cssp_camif *c = container_of(v4l2_dev, struct cssp_camif,
++					    v4l2_dev);
++
++	v4l2_subdev_cleanup(&c->bridge);
++	media_entity_cleanup(&c->bridge.entity);
++	media_entity_cleanup(&c->vdev.entity);
++	media_device_cleanup(&c->mdev);
++	mutex_destroy(&c->hw_lock);
++	mutex_destroy(&c->vlock);
++	kfree(c);
++}
++
++static void cssp_put_dma(struct cssp_camif *c)
++{
++	dma_unmap_resource(c->dmadev, c->data_dma, CSSP_DATA_WINDOW,
++			   DMA_FROM_DEVICE, 0);
++	dma_release_channel(c->dma);
++}
++
++static void cssp_pm_disable(struct cssp_camif *c)
++{
++	pm_runtime_disable(c->dev);
++	if (!pm_runtime_status_suspended(c->dev))
++		cssp_power_off(c);
++	pm_runtime_set_suspended(c->dev);
++	pm_runtime_dont_use_autosuspend(c->dev);
++}
++
++/*
++ * Registers, GPIOs, regulators and the clock are device managed: nothing
++ * touches them after remove, because remove stops streaming and powers the
++ * bridge down first. The DMA channel and the data port mapping are released
++ * by hand (cssp_put_dma()), because a devres action would run after remove
++ * and the driver state, which it needs, may be gone by then: the state lives
++ * until the last file is closed.
++ */
++static int cssp_get_resources(struct cssp_camif *c,
++			      struct platform_device *pdev)
++{
++	struct device *dev = c->dev;
++	struct resource *res;
++	int ret;
++
++	c->base = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
++	if (IS_ERR(c->base))
++		return PTR_ERR(c->base);
++	if (resource_size(res) < CSSP_REG_DATA + CSSP_DATA_WINDOW)
++		return dev_err_probe(dev, -EINVAL, "register window too small\n");
++	c->data_phys = res->start + CSSP_REG_DATA;
++
++	/*
++	 * Logically deasserted, i.e. the line is high and the bridge and the
++	 * sensor stay out of reset. The driver owns the line so that nothing
++	 * else drives it, and never pulses it.
++	 */
++	c->reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
++	if (IS_ERR(c->reset))
++		return dev_err_probe(dev, PTR_ERR(c->reset),
++				     "failed to get the reset GPIO\n");
++
++	c->orient = devm_gpiod_get_optional(dev, "orientation", GPIOD_IN);
++	if (IS_ERR(c->orient))
++		return dev_err_probe(dev, PTR_ERR(c->orient),
++				     "failed to get the orientation GPIO\n");
++
++	c->supplies[0].supply = "vdd";
++	c->supplies[1].supply = "vddio";
++	ret = devm_regulator_bulk_get(dev, ARRAY_SIZE(c->supplies),
++				      c->supplies);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to get the supplies\n");
++
++	c->mclk = devm_clk_get_optional(dev, NULL);
++	if (IS_ERR(c->mclk))
++		return dev_err_probe(dev, PTR_ERR(c->mclk),
++				     "failed to get the clock\n");
++
++	c->dma = dma_request_chan(dev, "rx");
++	if (IS_ERR(c->dma))
++		return dev_err_probe(dev, PTR_ERR(c->dma),
++				     "failed to get the DMA channel\n");
++
++	c->dmadev = dmaengine_get_dma_device(c->dma);
++
++	/* the data port as the DMA controller sees it */
++	c->data_dma = dma_map_resource(c->dmadev, c->data_phys,
++				       CSSP_DATA_WINDOW, DMA_FROM_DEVICE, 0);
++	if (dma_mapping_error(c->dmadev, c->data_dma)) {
++		dma_release_channel(c->dma);
++		return dev_err_probe(dev, -ENOMEM,
++				     "failed to map the data port\n");
++	}
++	dev_dbg(dev, "data port %pa, DMA address %pad\n", &c->data_phys,
++		&c->data_dma);
++
++	return 0;
++}
++
++static int cssp_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct cssp_camif *c;
++	int ret;
++
++	/* freed by cssp_v4l2_release() once the V4L2 device is registered */
++	c = kzalloc_obj(*c);
++	if (!c)
++		return -ENOMEM;
++
++	c->dev = dev;
++	mutex_init(&c->vlock);
++	mutex_init(&c->hw_lock);
++	spin_lock_init(&c->qlock);
++	INIT_LIST_HEAD(&c->pending);
++	INIT_WORK(&c->copy_work, cssp_copy_work);
++	INIT_WORK(&c->recover_work, cssp_recover_work);
++	INIT_DELAYED_WORK(&c->watchdog, cssp_watchdog_work);
++	/* before v4l2_device_register(), which would set its own drvdata */
++	platform_set_drvdata(pdev, c);
++
++	ret = cssp_get_resources(c, pdev);
++	if (ret)
++		goto err_free;
++
++	ret = cssp_parse_endpoint(c);
++	if (ret)
++		goto err_dma;
++
++	c->copy_wq = alloc_ordered_workqueue(CSSP_DRV_NAME, WQ_HIGHPRI);
++	if (!c->copy_wq) {
++		ret = -ENOMEM;
++		goto err_dma;
++	}
++
++	/*
++	 * Power up by hand and hand the active state to runtime PM, so that
++	 * the driver also identifies the bridge when runtime PM is not
++	 * enabled yet. The driver never pulses the reset.
++	 */
++	ret = cssp_power_on(c);
++	if (ret)
++		goto err_wq;
++
++	ret = cssp_identify(c);
++	if (ret) {
++		cssp_power_off(c);
++		goto err_wq;
++	}
++
++	dev_info(dev, "CSSP revision %c%u, %u-byte requests\n",
++		 'A' + (c->rev >> 4), c->rev & 0xf, c->req_len);
++
++	pm_runtime_set_active(dev);
++	pm_runtime_get_noresume(dev);
++	pm_runtime_set_autosuspend_delay(dev, CSSP_AUTOSUSPEND_MS);
++	pm_runtime_use_autosuspend(dev);
++	pm_runtime_enable(dev);
++	pm_runtime_put_autosuspend(dev);
++
++	c->mdev.dev = dev;
++	strscpy(c->mdev.model, CSSP_MODEL, sizeof(c->mdev.model));
++	/* must match the libcamera simple pipeline table */
++	strscpy(c->mdev.driver_name, CSSP_DRV_NAME, sizeof(c->mdev.driver_name));
++	media_device_init(&c->mdev);
++
++	c->v4l2_dev.mdev = &c->mdev;
++	c->v4l2_dev.release = cssp_v4l2_release;
++	ret = v4l2_device_register(dev, &c->v4l2_dev);
++	if (ret) {
++		media_device_cleanup(&c->mdev);
++		goto err_pm;
++	}
++
++	/* from here on, v4l2_device_put() frees the state */
++	ret = cssp_bridge_init(c);
++	if (ret)
++		goto err_v4l2;
++
++	ret = cssp_video_init(c);
++	if (ret)
++		goto err_bridge;
++
++	ret = cssp_async_init(c);
++	if (ret)
++		goto err_async;
++
++	ret = media_device_register(&c->mdev);
++	if (ret)
++		goto err_async;
++
++	return 0;
++
++err_async:
++	v4l2_async_nf_unregister(&c->notifier);
++	v4l2_async_nf_cleanup(&c->notifier);
++	vb2_video_unregister_device(&c->vdev);
++err_bridge:
++	v4l2_device_unregister_subdev(&c->bridge);
++err_v4l2:
++	v4l2_device_unregister(&c->v4l2_dev);
++	cssp_pm_disable(c);
++	destroy_workqueue(c->copy_wq);
++	cssp_put_dma(c);
++	v4l2_device_put(&c->v4l2_dev);
++	return ret;
++
++err_pm:
++	cssp_pm_disable(c);
++err_wq:
++	destroy_workqueue(c->copy_wq);
++err_dma:
++	cssp_put_dma(c);
++err_free:
++	mutex_destroy(&c->hw_lock);
++	mutex_destroy(&c->vlock);
++	kfree(c);
++	return ret;
++}
++
++static void cssp_remove(struct platform_device *pdev)
++{
++	struct cssp_camif *c = platform_get_drvdata(pdev);
++
++	/* stops a running stream; later file operations do not reach the driver */
++	vb2_video_unregister_device(&c->vdev);
++	/* unbinds the sensor, which removes the device link */
++	v4l2_async_nf_unregister(&c->notifier);
++	v4l2_async_nf_cleanup(&c->notifier);
++	media_device_unregister(&c->mdev);
++	v4l2_device_unregister_subdev(&c->bridge);
++	v4l2_device_unregister(&c->v4l2_dev);
++
++	destroy_workqueue(c->copy_wq);
++	cssp_pm_disable(c);
++	cssp_put_dma(c);
++
++	/* the GPMC chip select belongs to the GPMC driver */
++	v4l2_device_put(&c->v4l2_dev);
++}
++
++static const struct of_device_id cssp_of_match[] = {
++	{ .compatible = "quicklogic,cssp-camif" },
++	{ /* sentinel */ }
++};
++MODULE_DEVICE_TABLE(of, cssp_of_match);
++
++static struct platform_driver cssp_driver = {
++	.probe = cssp_probe,
++	.remove = cssp_remove,
++	.driver = {
++		.name = CSSP_DRV_NAME,
++		.of_match_table = cssp_of_match,
++		.pm = pm_ptr(&cssp_pm_ops),
++	},
++};
++module_platform_driver(cssp_driver);
++
++MODULE_DESCRIPTION("QuickLogic CSSP camera interface driver");
++MODULE_AUTHOR("Koen Kooi <koen@dominion.thruhere.net>");
++MODULE_LICENSE("GPL");

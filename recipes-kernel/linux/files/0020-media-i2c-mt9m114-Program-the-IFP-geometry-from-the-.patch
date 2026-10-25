@@ -1,0 +1,84 @@
+From 983490f078b8eb229adec043bdece4fec923ffbb Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 10:57:31 +0100
+Subject: [PATCH] media: i2c: mt9m114: Program the IFP geometry from the pixel
+ array in RAW10 bypass
+
+In RAW10 bypass the IFP neither crops nor scales, so the crop window,
+the output size and the AWB/AE windows must match what the pixel array
+sends. The IFP sink format is not propagated from the pixel array, as
+that would need both subdev locks, and keeps its 1296x976 default
+unless userspace sets it. With a windowed or binned pixel array the IFP
+was then programmed for a bigger frame than the sensor outputs.
+
+Derive the geometry from the pixel array source format in that mode.
+
+Upstream-Status: Pending
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/media/i2c/mt9m114.c | 33 +++++++++++++++++++++++++++++++--
+ 1 file changed, 31 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/i2c/mt9m114.c b/drivers/media/i2c/mt9m114.c
+index 0a490c70c..76455cf6f 100644
+--- a/drivers/media/i2c/mt9m114.c
++++ b/drivers/media/i2c/mt9m114.c
+@@ -860,12 +860,14 @@ static int mt9m114_ifp_get_border(struct v4l2_subdev_state *state)
+ }
+ 
+ static int mt9m114_configure_ifp(struct mt9m114 *sensor,
+-				 struct v4l2_subdev_state *state)
++				 struct v4l2_subdev_state *state,
++				 struct v4l2_subdev_state *pa_state)
+ {
+ 	const struct mt9m114_format_info *info;
+ 	const struct v4l2_mbus_framefmt *format;
+ 	const struct v4l2_rect *crop;
+ 	const struct v4l2_rect *compose;
++	struct v4l2_rect bypass;
+ 	unsigned int border;
+ 	u64 output_format;
+ 	int ret = 0;
+@@ -889,6 +891,33 @@ static int mt9m114_configure_ifp(struct mt9m114 *sensor,
+ 	 */
+ 	border = mt9m114_ifp_get_border(state);
+ 
++	/*
++	 * In RAW10 bypass the IFP neither crops nor scales, so the crop window
++	 * and the output size must be exactly what the pixel array sends. The
++	 * IFP sink size is not propagated from the pixel array (that would
++	 * need both subdev locks) and keeps its 1296x976 default unless
++	 * userspace sets it, which leaves the IFP frame geometry programmed
++	 * for a bigger frame than the windowed or binned pixel array output.
++	 * Derive the geometry from the pixel array format instead.
++	 */
++	if (format->code == MEDIA_BUS_FMT_SGRBG10_1X10) {
++		const struct v4l2_mbus_framefmt *pa_fmt =
++			v4l2_subdev_state_get_format(pa_state, 0);
++
++		bypass.left = 0;
++		bypass.top = 0;
++		bypass.width = pa_fmt->width;
++		bypass.height = pa_fmt->height;
++		if (bypass.width != crop->width ||
++		    bypass.height != crop->height)
++			dev_dbg(&sensor->client->dev,
++				"RAW10 bypass: IFP %ux%u overridden by pixel array %ux%u\n",
++				crop->width, crop->height,
++				bypass.width, bypass.height);
++		crop = &bypass;
++		compose = &bypass;
++	}
++
+ 	cci_write(sensor->regmap, MT9M114_CAM_CROP_WINDOW_XOFFSET,
+ 		  crop->left - border, &ret);
+ 	cci_write(sensor->regmap, MT9M114_CAM_CROP_WINDOW_YOFFSET,
+@@ -972,7 +1001,7 @@ static int mt9m114_start_streaming(struct mt9m114 *sensor,
+ 	if (ret)
+ 		goto error;
+ 
+-	ret = mt9m114_configure_ifp(sensor, ifp_state);
++	ret = mt9m114_configure_ifp(sensor, ifp_state, pa_state);
+ 	if (ret)
+ 		goto error;
+ 

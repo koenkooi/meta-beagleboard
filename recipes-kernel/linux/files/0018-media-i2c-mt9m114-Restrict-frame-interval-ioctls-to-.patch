@@ -1,0 +1,65 @@
+From 2523efc8bdb2b9ed1e2576fab9a33f3b2e16b041 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Sun, 25 Oct 2026 08:05:58 +0100
+Subject: [PATCH] media: i2c: mt9m114: Restrict frame interval ioctls to the
+ source pad
+
+The frame interval only exists on the IFP source pad. Return
+-ENOIOCTLCMD for other pads in the enum, get and set operations, and
+validate the requested size against the crop rectangle when
+enumerating intervals.
+
+Upstream-Status: Pending
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/media/i2c/mt9m114.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/drivers/media/i2c/mt9m114.c b/drivers/media/i2c/mt9m114.c
+index 5995567aa..893e18e7f 100644
+--- a/drivers/media/i2c/mt9m114.c
++++ b/drivers/media/i2c/mt9m114.c
+@@ -1650,6 +1650,9 @@ static int mt9m114_ifp_get_frame_interval(struct v4l2_subdev *sd,
+ 	struct v4l2_fract *ival = &interval->interval;
+ 	struct mt9m114 *sensor = ifp_to_mt9m114(sd);
+ 
++	if (interval->pad != 1)
++		return -ENOIOCTLCMD;
++
+ 	/*
+ 	 * FIXME: Implement support for V4L2_SUBDEV_FORMAT_TRY, using the V4L2
+ 	 * subdev active state API.
+@@ -1671,6 +1674,9 @@ static int mt9m114_ifp_set_frame_interval(struct v4l2_subdev *sd,
+ 	struct mt9m114 *sensor = ifp_to_mt9m114(sd);
+ 	int ret = 0;
+ 
++	if (interval->pad != 1)
++		return -ENOIOCTLCMD;
++
+ 	/*
+ 	 * FIXME: Implement support for V4L2_SUBDEV_FORMAT_TRY, using the V4L2
+ 	 * subdev active state API.
+@@ -1826,6 +1832,11 @@ static int mt9m114_ifp_enum_frameintervals(struct v4l2_subdev *sd,
+ {
+ 	struct mt9m114 *sensor = ifp_to_mt9m114(sd);
+ 	const struct mt9m114_format_info *info;
++	const struct v4l2_rect *crop;
++
++	/* The frame interval is only exposed on the source pad. */
++	if (fie->pad != 1)
++		return -ENOIOCTLCMD;
+ 
+ 	if (fie->index > 0)
+ 		return -EINVAL;
+@@ -1834,6 +1845,11 @@ static int mt9m114_ifp_enum_frameintervals(struct v4l2_subdev *sd,
+ 	if (!info || info->code != fie->code)
+ 		return -EINVAL;
+ 
++	crop = v4l2_subdev_state_get_crop(state, 0);
++	if (fie->width < crop->width / 4 || fie->width > crop->width ||
++	    fie->height < crop->height / 4 || fie->height > crop->height)
++		return -EINVAL;
++
+ 	fie->interval.numerator = 1;
+ 	fie->interval.denominator = MT9M114_MAX_FRAME_RATE;
+ 
