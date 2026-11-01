@@ -1,4 +1,4 @@
-From 9ad6785244b48210b6956a85cc994cf7c348d4a4 Mon Sep 17 00:00:00 2001
+From 71b05799a9d93fc613085ad3e52ca6561d0bcb6b Mon Sep 17 00:00:00 2001
 From: Koen Kooi <koen@dominion.thruhere.net>
 Date: Sun, 25 Oct 2026 13:29:48 +0100
 Subject: [PATCH] media: i2c: mt9m114: Fix 2x2 summing in RAW10 bypass
@@ -29,14 +29,18 @@ from a 1280x960 crop at 48 MHz: hblank 520 gives 40.57 fps, no error
 frames and no row drift; hblank 308, 400 and 480 show the first bad
 column at 440, 532 and 612 (LL - 508); hblank 508 and above is clean.
 
+HBLANK is reset to the new default when the pixel array starts or stops
+summing; clamping alone left it at the summing minimum after leaving
+summing (full frame 18.95 instead of 21.31 fps).
+
 Upstream-Status: Pending
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---
- drivers/media/i2c/mt9m114.c | 74 +++++++++++++++++++++++++++++++++----
- 1 file changed, 67 insertions(+), 7 deletions(-)
+ drivers/media/i2c/mt9m114.c | 85 ++++++++++++++++++++++++++++++++++---
+ 1 file changed, 78 insertions(+), 7 deletions(-)
 
 diff --git a/drivers/media/i2c/mt9m114.c b/drivers/media/i2c/mt9m114.c
-index 76455cf6f..23dc35979 100644
+index 76455cf6f..2ab37a1d8 100644
 --- a/drivers/media/i2c/mt9m114.c
 +++ b/drivers/media/i2c/mt9m114.c
 @@ -337,6 +337,13 @@
@@ -132,7 +136,7 @@ index 76455cf6f..23dc35979 100644
  
  	read_mode &= ~(MT9M114_CAM_SENSOR_CONTROL_X_READ_OUT_MASK |
  		       MT9M114_CAM_SENSOR_CONTROL_Y_READ_OUT_MASK);
-@@ -1203,15 +1253,23 @@ static void mt9m114_pa_ctrl_update_exposure(struct mt9m114 *sensor, bool manual)
+@@ -1203,15 +1253,34 @@ static void mt9m114_pa_ctrl_update_exposure(struct mt9m114 *sensor, bool manual)
  }
  
  static void mt9m114_pa_ctrl_update_blanking(struct mt9m114 *sensor,
@@ -142,12 +146,21 @@ index 76455cf6f..23dc35979 100644
 +	unsigned int min_blank = MT9M114_MIN_HBLANK;
 +	unsigned int def_blank = MT9M114_DEF_HBLANK;
  	unsigned int max_blank;
- 
++	bool reset_hblank;
++
 +	if (mt9m114_pa_is_summing(crop, format)) {
 +		min_blank = MT9M114_MIN_HBLANK_SUMMING;
 +		def_blank = MT9M114_DEF_HBLANK_SUMMING;
 +	}
 +
++	/*
++	 * The HBLANK default only changes when the pixel array starts or stops
++	 * summing. A value picked for the other readout mode is meaningless
++	 * there, and the summing minimum would otherwise stick after leaving
++	 * summing, so reset HBLANK to the new default on that transition.
++	 */
++	reset_hblank = sensor->pa.hblank->default_value != def_blank;
+ 
  	/* Update the blanking controls ranges based on the output size. */
  	max_blank = MT9M114_CAM_SENSOR_CFG_LINE_LENGTH_PCK_MAX
  		  - format->width;
@@ -155,10 +168,12 @@ index 76455cf6f..23dc35979 100644
 -				 max_blank, 1, MT9M114_DEF_HBLANK);
 +	__v4l2_ctrl_modify_range(sensor->pa.hblank, min_blank,
 +				 max_blank, 1, def_blank);
++	if (reset_hblank)
++		__v4l2_ctrl_s_ctrl(sensor->pa.hblank, def_blank);
  
  	max_blank = MT9M114_CAM_SENSOR_CFG_FRAME_LENGTH_LINES_MAX
  		  - format->height;
-@@ -1308,7 +1366,7 @@ static int mt9m114_pa_set_fmt(struct v4l2_subdev *sd,
+@@ -1308,7 +1377,7 @@ static int mt9m114_pa_set_fmt(struct v4l2_subdev *sd,
  	fmt->format = *format;
  
  	if (fmt->which == V4L2_SUBDEV_FORMAT_ACTIVE)
@@ -167,7 +182,7 @@ index 76455cf6f..23dc35979 100644
  
  	return 0;
  }
-@@ -1382,7 +1440,7 @@ static int mt9m114_pa_set_selection(struct v4l2_subdev *sd,
+@@ -1382,7 +1451,7 @@ static int mt9m114_pa_set_selection(struct v4l2_subdev *sd,
  	if (sel->which != V4L2_SUBDEV_FORMAT_ACTIVE)
  		return ret;
  
@@ -176,7 +191,7 @@ index 76455cf6f..23dc35979 100644
  
  	/* Apply values immediately if streaming. */
  	if (sensor->streaming) {
-@@ -1419,6 +1477,7 @@ static int mt9m114_pa_init(struct mt9m114 *sensor)
+@@ -1419,6 +1488,7 @@ static int mt9m114_pa_init(struct mt9m114 *sensor)
  	struct v4l2_subdev *sd = &sensor->pa.sd;
  	struct media_pad *pads = &sensor->pa.pad;
  	const struct v4l2_mbus_framefmt *format;
@@ -184,7 +199,7 @@ index 76455cf6f..23dc35979 100644
  	struct v4l2_subdev_state *state;
  	unsigned int max_exposure;
  	int ret;
-@@ -1501,7 +1560,8 @@ static int mt9m114_pa_init(struct mt9m114 *sensor)
+@@ -1501,7 +1571,8 @@ static int mt9m114_pa_init(struct mt9m114 *sensor)
  	/* Update the range of the blanking controls based on the format. */
  	state = v4l2_subdev_lock_and_get_active_state(sd);
  	format = v4l2_subdev_state_get_format(state, 0);
